@@ -1,4 +1,4 @@
-introducer: 172.22.154.105
+introducer: 172.22.156.22
 port: 7008
 gossip_interval: 200
 suspect_time: 2000

@@ -155,7 +155,7 @@ func (m *MemberList) FindGossipDest(status int) string {
 
 func NewMemberService() MemberInfo {
 	var d MemberInfo
-	d.config = NewDaemonConf()
+	d.config = GetMemberServiceConfig()
 	d.Ip = FindLocalhostIp()
 	if d.Ip == "" {
 		log.Fatal("ERROR get localhost IP")

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type DaemonConf struct {
+type MemberServiceConfig struct {
 	Introducer     string        `yaml:"introducer"`
 	Port           string        `yaml:"port"`
 	GossipInterval time.Duration `yaml:"gossip_interval"`
@@ -17,8 +17,8 @@ type DaemonConf struct {
 }
 
 
-func NewDaemonConf() DaemonConf {
-	var c DaemonConf
+func GetMemberServiceConfig() MemberServiceConfig {
+	var c MemberServiceConfig
 	yamlFile, err := ioutil.ReadFile("conf_daemon.yaml")
 	if err != nil {
 		log.Fatal("ERROR get yaml file: %v", err)

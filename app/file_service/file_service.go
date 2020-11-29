@@ -21,12 +21,12 @@ type FileServer struct {
 	ip         string
 	MemberInfo member_service.MemberInfo
 	FileTable  FileTable
-	config     ServerConf
+	config     FileServiceConfig
 }
 
 func NewFileServer() FileServer {
 	var f FileServer
-	f.config = NewServerConf()
+	f.config = GetFileServiceConfig()
 	f.ip = member_service.FindLocalhostIp()
 	if f.ip == "" {
 		log.Fatal("ERROR get localhost IP")

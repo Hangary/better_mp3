@@ -6,13 +6,13 @@ import (
 	"log"
 )
 
-type ServerConf struct {
+type FileServiceConfig struct {
 	Port string `yaml:"port"`
 	Path string `yaml:"path"`
 }
 
-func NewServerConf() ServerConf {
-	var c ServerConf
+func GetFileServiceConfig() FileServiceConfig {
+	var c FileServiceConfig
 	yamlFile, err := ioutil.ReadFile("conf_server.yaml")
 	if err != nil {
 		log.Fatal("ERROR get yaml file: %v", err)

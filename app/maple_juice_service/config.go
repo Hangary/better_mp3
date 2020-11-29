@@ -6,15 +6,15 @@ import (
 	"log"
 )
 
-type MJConf struct {
+type MapleJuiceServiceConfig struct {
 	Port      string `yaml:"port"`
 	FilePath  string `yaml:"file_path"`
 	AppPath   string `yaml:"app_path"`
 	InputFile string `yaml:"input_file"`
 }
 
-func NewMJConf() MJConf {
-	var c MJConf
+func GetMapleJuiceServiceConfig() MapleJuiceServiceConfig {
+	var c MapleJuiceServiceConfig
 	yamlFile, err := ioutil.ReadFile("conf_maplejuice.yaml")
 	if err != nil {
 		log.Fatal("ERROR get yaml file: %v", err)

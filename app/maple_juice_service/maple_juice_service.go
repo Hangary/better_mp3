@@ -19,13 +19,13 @@ import (
 )
 
 type MapleJuiceServer struct {
-	config     MJConf
+	config     MapleJuiceServiceConfig
 	fileServer *file_service.FileServer
 }
 
 func NewMapleJuiceServer(fileServer *file_service.FileServer) MapleJuiceServer {
 	var f MapleJuiceServer
-	f.config = NewMJConf()
+	f.config = GetMapleJuiceServiceConfig()
 	f.fileServer = fileServer
 	return f
 }

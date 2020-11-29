@@ -195,18 +195,22 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 
 	fmt.Println("Start scheduling")
-	// Schedule tasks (in turn)
+	// Schedule mapleTasks (in turn)
 	mjServer.fileServer.Put(executable, executable)
-	tasks := map[string]string{}
+	mapleTasks := map[string]string{} // taskNum -> serverIP
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
+		// upload partitioned input file to sdfs
 		inputFile := path.Join(inputDir, strconv.Itoa(i))
 		mjServer.fileServer.Put(inputFile, strconv.Itoa(i))
+
 		if it.Next() == false {
 			it.First()
 		}
 		node := it.Value()
-		tasks[strconv.Itoa(i)] = node.(file_service.FileTableEntry).ServerIP
+
+		// assign task to one server
+		mapleTasks[strconv.Itoa(i)] = node.(file_service.FileTableEntry).ServerIP
 	}
 	fmt.Println("Done scheduling")
 
@@ -218,9 +222,9 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	var calls []RPCTask
 	var unfinishedTasks []string
 	var failedIP []string
-	mapleResults := make([]string, len(tasks))
+	mapleResults := make([]string, len(mapleTasks))
 	cnt := 0
-	for inputFile, ip := range tasks {
+	for inputFile, ip := range mapleTasks {
 		fmt.Println("DEBUG: Dialing RPC for", inputFile, ip)
 		client, err := rpc.Dial("tcp", ip+":"+port)
 		if err != nil {
@@ -247,15 +251,15 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	for _, call := range calls {
 		replyCall := <-call.call.Done
 		if replyCall.Error != nil {
-			log.Println("Some tasks failed. Rescheduling is needed!", replyCall.Error)
+			log.Println("Some mapleTasks failed. Rescheduling is needed!", replyCall.Error)
 			unfinishedTasks = append(unfinishedTasks, call.fileName)
 			failedIP = append(failedIP, call.ip)
 			continue
 		}
 	}
 
-	// Reschedule unfinished tasks
-	tasks = map[string]string{}
+	// Reschedule unfinished mapleTasks
+	mapleTasks = map[string]string{}
 	it = mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < len(unfinishedTasks); i++ {
 		if it.Next() == false {
@@ -270,12 +274,12 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 				node = it.Value()
 			}
 		}
-		tasks[unfinishedTasks[i]] = node.(file_service.FileTableEntry).ServerIP
+		mapleTasks[unfinishedTasks[i]] = node.(file_service.FileTableEntry).ServerIP
 	}
 	var newCalls []rpc.Call
 	newResults := make([]string, len(unfinishedTasks))
 	cnt = 0
-	for inputFile, ip := range tasks {
+	for inputFile, ip := range mapleTasks {
 		client, err := rpc.Dial("tcp", ip+":"+port)
 		if err != nil {
 			log.Fatal(err)

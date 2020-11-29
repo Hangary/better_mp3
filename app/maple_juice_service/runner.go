@@ -48,13 +48,14 @@ func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResu
 		if len(content) == 0 {
 			break
 		}
-		fmt.Println("DEBUG:", path.Join(mjServer.config.TmpDir, executable))
+		fmt.Println("DEBUG: input is ", content)
 		cmd := exec.Command(path.Join(mjServer.config.TmpDir, executable), strings.Join(content, "\n"))
 		ret, err := cmd.CombinedOutput()
 		if err != nil {
 			logger.PrintError("Application error: ", err)
 			return err
 		}
+		fmt.Println("DEBUG: output is ", ret)
 
 		//fmt.Println("RemoteGet maple results")
 		// RemoteGet resulting key-value pairs

@@ -24,34 +24,34 @@ func RunRPCServer(fileServer *FileServer) {
 	}
 }
 
-func (r FileRPCServer) LocalDel(filename string, success *bool) error {
+func (r *FileRPCServer) LocalDelete(filename string, success *bool) error {
 	return r.fileServer.LocalDelete(filename, success)
 }
 
-func (r FileRPCServer) LocalGet(filename string, content *[]byte) error {
+func (r *FileRPCServer) LocalGet(filename string, content *[]byte) error {
 	return r.fileServer.LocalGet(filename, content)
 }
 
-func (r FileRPCServer) LocalAppend(args map[string]string, success *bool) error {
-	return r.fileServer.LocalAppend(args, success)
+func (r *FileRPCServer) LocalAppend(task FileTask, success *bool) error {
+	return r.fileServer.LocalAppend(task, success)
 }
 
-func (r FileRPCServer) LocalPut(args map[string]string, success *bool) error {
-	return r.fileServer.LocalPut(args, success)
+func (r *FileRPCServer) LocalPut(task FileTask, success *bool) error {
+	return r.fileServer.LocalPut(task, success)
 }
 
-func (r FileRPCServer) LocalRep(filename string, success *bool) error {
+func (r *FileRPCServer) LocalReplicate(filename string, success *bool) error {
 	return r.fileServer.LocalReplicate(filename, success)
 }
 
-func (r FileRPCServer) PutRepEntry(args map[uint32][]string, success *bool) error {
+func (r *FileRPCServer) PutRepEntry(args map[uint32][]string, success *bool) error {
 	return r.fileServer.FileTable.PutRepEntry(args, success)
 }
 
-func (r FileRPCServer) DelEntry(sdfs string, success *bool) error {
+func (r *FileRPCServer) DeleteEntry(sdfs string, success *bool) error {
 	return r.fileServer.FileTable.DeleteEntry(sdfs, success)
 }
 
-func (r FileRPCServer) PutEntry(sdfs string, success *bool) error {
+func (r *FileRPCServer) PutEntry(sdfs string, success *bool) error {
 	return r.fileServer.FileTable.PutEntry(sdfs, success)
 }

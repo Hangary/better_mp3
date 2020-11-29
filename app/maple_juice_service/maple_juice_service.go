@@ -161,7 +161,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	// open output files
 	outputFiles := map[string]*os.File{}
 	for i := 0; i < taskNum; i++ {
-		inputFile := path.Join(inputFileName, strconv.Itoa(i))
+		inputFile := path.Join(mjServer.config.InputDir, inputFileName + "-" + strconv.Itoa(i))
 		f, err := os.OpenFile(inputFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		outputFiles["input"+strconv.Itoa(i)] = f
 		if err != nil {

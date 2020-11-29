@@ -25,9 +25,9 @@ func NewFileTable(sev *FileServer) FileTable {
 	var tb FileTable
 	tb.fileServer = sev
 	tb.Storage = *treemap.NewWith(compare)
-	tb.AddEmptyEntry(sev.ip)
+	tb.AddEmptyEntry(sev.selfIP)
 	tb.latest = map[string]int64{}
-	MyHash = hash(sev.ip)
+	MyHash = hash(sev.selfIP)
 	return tb
 }
 

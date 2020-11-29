@@ -18,42 +18,46 @@ var promptChannel = make(chan string)
 var MyHash uint32
 
 type FileServer struct {
-	ip         string
-	MemberInfo member_service.MemberInfo
+	selfIP     string
+	MemberInfo member_service.MemberServer
 	FileTable  FileTable
 	config     FileServiceConfig
 }
 
-func NewFileServer() FileServer {
-	var f FileServer
-	f.config = GetFileServiceConfig()
-	f.ip = member_service.FindLocalhostIp()
-	if f.ip == "" {
+func NewFileServer(memberService member_service.MemberServer) FileServer {
+	var fs FileServer
+	fs.config = GetFileServiceConfig()
+	fs.selfIP = member_service.FindLocalhostIp()
+	if fs.selfIP == "" {
 		log.Fatal("ERROR get localhost IP")
 	}
-	f.FileTable = NewFileTable(&f)
-	f.MemberInfo = member_service.NewMemberService()
-	go f.FileTable.RunDaemon(
-		f.MemberInfo.MemberList.JoinedNodeChan,
-		f.MemberInfo.MemberList.LeftNodesChan)
-	return f
+	fs.FileTable = NewFileTable(&fs)
+	fs.MemberInfo = memberService
+	go fs.FileTable.RunDaemon(
+		fs.MemberInfo.JoinedNodeChan,
+		fs.MemberInfo.LeftNodesChan)
+	return fs
 }
 
-func (s *FileServer) LocalRep(filename string, success *bool) error {
+func (fs *FileServer) Run() {
+	go RunRPCServer(fs)
+}
+
+func (fs *FileServer) LocalRep(filename string, success *bool) error {
 	var content string
-	locations := s.FileTable.ListLocations(filename)
+	locations := fs.FileTable.ListLocations(filename)
 	if len(locations) == 0 {
 		return errors.New("no replica available")
 	} else {
 		for _, ip := range locations {
 			var buffer []byte
-			if ip == s.ip {
-				err := s.LocalGet(filename, &buffer)
+			if ip == fs.selfIP {
+				err := fs.LocalGet(filename, &buffer)
 				if err != nil {
 					continue
 				}
 			} else {
-				client, err := rpc.Dial("tcp", ip+":"+s.config.Port)
+				client, err := rpc.Dial("tcp", ip+":"+fs.config.Port)
 				if err != nil {
 					continue
 				}
@@ -65,19 +69,17 @@ func (s *FileServer) LocalRep(filename string, success *bool) error {
 			content = string(buffer)
 		}
 	}
-	err := s.LocalPut(map[string]string{"filename": filename, "content": content}, success)
+	err := fs.LocalPut(map[string]string{"filename": filename, "content": content}, success)
 	return err
 }
 
-
-func (s *FileServer) LocalPut(args map[string]string, success *bool) error {
-	err := ioutil.WriteFile(s.config.Path+args["filename"], []byte(args["content"]), os.ModePerm)
+func (fs *FileServer) LocalPut(args map[string]string, success *bool) error {
+	err := ioutil.WriteFile(fs.config.Path+args["filename"], []byte(args["content"]), os.ModePerm)
 	return err
 }
 
-
-func (s *FileServer) LocalAppend(args map[string]string, success *bool) error {
-	f, err := os.OpenFile(s.config.Path+args["filename"], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func (fs *FileServer) LocalAppend(args map[string]string, success *bool) error {
+	f, err := os.OpenFile(fs.config.Path+args["filename"], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -88,7 +90,7 @@ func (s *FileServer) LocalAppend(args map[string]string, success *bool) error {
 	return err
 }
 
-func (s *FileServer) confirm(local string, remote string) {
+func (fs *FileServer) confirm(local string, remote string) {
 	buf := bufio.NewReader(os.Stdin)
 	go func() {
 		time.Sleep(time.Second * 30)
@@ -104,7 +106,7 @@ func (s *FileServer) confirm(local string, remote string) {
 			cmd := strings.Split(string(bytes.Trim([]byte(sentence), "\n")), " ")
 			if err == nil && len(cmd) == 1 {
 				if cmd[0] == "y" || cmd[0] == "yes" {
-					s.Put(local, remote)
+					fs.Put(local, remote)
 				} else if cmd[0] == "n" || cmd[0] == "no" {
 					return
 				}
@@ -113,20 +115,20 @@ func (s *FileServer) confirm(local string, remote string) {
 	}
 }
 
-func (s *FileServer) TemptPut(local string, remote string) {
-	_, ok := s.FileTable.latest[remote]
-	if ok && time.Now().UnixNano()-s.FileTable.latest[remote] < int64(time.Minute) {
+func (fs *FileServer) TemptPut(local string, remote string) {
+	_, ok := fs.FileTable.latest[remote]
+	if ok && time.Now().UnixNano()-fs.FileTable.latest[remote] < int64(time.Minute) {
 		fmt.Println("Confirm update? (y/n)")
-		s.confirm(local, remote)
+		fs.confirm(local, remote)
 	} else {
-		s.Put(local, remote)
+		fs.Put(local, remote)
 	}
 }
 
 // local: local file name
 // remote: remote file name
-func (s *FileServer) Put(local string, remote string) {
-	target_ips := s.FileTable.search(remote)
+func (fs *FileServer) Put(local string, remote string) {
+	target_ips := fs.FileTable.search(remote)
 	//fmt.Println(target_ips)
 	for _, ip := range target_ips {
 		content, err := ioutil.ReadFile(local)
@@ -134,7 +136,7 @@ func (s *FileServer) Put(local string, remote string) {
 			fmt.Println("Local file", local, "doesn't exist!")
 			return
 		} else {
-			client, err := rpc.Dial("tcp", ip+":"+s.config.Port)
+			client, err := rpc.Dial("tcp", ip+":"+fs.config.Port)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -151,12 +153,12 @@ func (s *FileServer) Put(local string, remote string) {
 		}
 	}
 	var success bool
-	err := s.FileTable.PutEntry(remote, &success)
+	err := fs.FileTable.PutEntry(remote, &success)
 	if err != nil {
 		log.Println(err)
 	}
-	for id, _ := range s.MemberInfo.MemberList.Members {
-		client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+s.config.Port)
+	for id, _ := range fs.MemberInfo.Members {
+		client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+fs.config.Port)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -169,26 +171,26 @@ func (s *FileServer) Put(local string, remote string) {
 	}
 }
 
-func (s *FileServer) LocalGet(filename string, content *[]byte) error {
+func (fs *FileServer) LocalGet(filename string, content *[]byte) error {
 	var err error
-	*content, err = ioutil.ReadFile(s.config.Path + filename)
+	*content, err = ioutil.ReadFile(fs.config.Path + filename)
 	return err
 }
 
-func (s *FileServer) Get(sdfs string, local string) {
-	locations := s.FileTable.ListLocations(sdfs)
+func (fs *FileServer) Get(sdfs string, local string) {
+	locations := fs.FileTable.ListLocations(sdfs)
 	if len(locations) == 0 {
 		fmt.Println("The file is not available!")
 	} else {
 		for _, ip := range locations {
 			var buffer []byte
-			if ip == s.ip {
-				err := s.LocalGet(sdfs, &buffer)
+			if ip == fs.selfIP {
+				err := fs.LocalGet(sdfs, &buffer)
 				if err != nil {
 					continue
 				}
 			} else {
-				client, err := rpc.Dial("tcp", ip+":"+s.config.Port)
+				client, err := rpc.Dial("tcp", ip+":"+fs.config.Port)
 				if err != nil {
 					continue
 				}
@@ -206,26 +208,26 @@ func (s *FileServer) Get(sdfs string, local string) {
 	}
 }
 
-func (s *FileServer) LocalDel(filename string, success *bool) error {
-	err := os.Remove(s.config.Path + filename)
+func (fs *FileServer) LocalDel(filename string, success *bool) error {
+	err := os.Remove(fs.config.Path + filename)
 	return err
 }
 
-func (s *FileServer) Delete(sdfs string) {
-	locations := s.FileTable.ListLocations(sdfs)
+func (fs *FileServer) Delete(sdfs string) {
+	locations := fs.FileTable.ListLocations(sdfs)
 	if len(locations) == 0 {
 		fmt.Println("The file is not available!")
 	} else {
 		//fmt.Println(locations)
 		var success bool
 		for _, ip := range locations {
-			if ip == s.ip {
-				err := s.LocalDel(sdfs, &success)
+			if ip == fs.selfIP {
+				err := fs.LocalDel(sdfs, &success)
 				if err != nil {
 					log.Println(err)
 				}
 			} else {
-				client, err := rpc.Dial("tcp", ip+":"+s.config.Port)
+				client, err := rpc.Dial("tcp", ip+":"+fs.config.Port)
 				if err != nil {
 					log.Println(err)
 					continue
@@ -237,12 +239,12 @@ func (s *FileServer) Delete(sdfs string) {
 				}
 			}
 		}
-		err := s.FileTable.DeleteEntry(sdfs, &success)
+		err := fs.FileTable.DeleteEntry(sdfs, &success)
 		if err != nil {
 			log.Println(err)
 		}
-		for id, _ := range s.MemberInfo.MemberList.Members {
-			client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+s.config.Port)
+		for id, _ := range fs.MemberInfo.Members {
+			client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+fs.config.Port)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -256,11 +258,11 @@ func (s *FileServer) Delete(sdfs string) {
 	}
 }
 
-func (s *FileServer) Append(content string, remote string) {
-	target_ips := s.FileTable.search(remote)
+func (fs *FileServer) Append(content string, remote string) {
+	target_ips := fs.FileTable.search(remote)
 	//fmt.Println(target_ips)
 	for _, ip := range target_ips {
-		client, err := rpc.Dial("tcp", ip+":"+s.config.Port)
+		client, err := rpc.Dial("tcp", ip+":"+fs.config.Port)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -276,12 +278,12 @@ func (s *FileServer) Append(content string, remote string) {
 		}
 	}
 	var success bool
-	err := s.FileTable.PutEntry(remote, &success)
+	err := fs.FileTable.PutEntry(remote, &success)
 	if err != nil {
 		log.Println(err)
 	}
-	for id, _ := range s.MemberInfo.MemberList.Members {
-		client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+s.config.Port)
+	for id, _ := range fs.MemberInfo.Members {
+		client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+fs.config.Port)
 		if err != nil {
 			log.Println(err)
 			continue

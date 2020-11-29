@@ -30,6 +30,10 @@ func NewMapleJuiceServer(fileServer *file_service.FileServer) MapleJuiceServer {
 	return f
 }
 
+func (mjServer MapleJuiceServer) Run() {
+	go RunMapleJuiceRPCServer(&mjServer)
+}
+
 func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResult *string) error {
 	fmt.Println("Begin Running Maple Task")
 

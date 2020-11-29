@@ -1,9 +1,9 @@
 package member_service
 
 import (
+	"ToyRaftDB/logger"
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -14,12 +14,13 @@ import (
 )
 
 const (
-	ADDED     = 0
-	JOINED    = 1
-	SUSPECTED = 2
-	LEAVING   = 4
-	LEFT      = 5
+	ADDED = iota
+	JOINED
+	SUSPECTED
+	LEAVING
+	LEFT
 )
+type Status int
 
 func FindLocalhostIp() string {
 	addrs, _ := net.InterfaceAddrs()
@@ -33,70 +34,59 @@ func FindLocalhostIp() string {
 
 var mux sync.Mutex
 
-type MemberInfo struct {
-	Ip               string
-	Id               string
+type MemberServer struct {
 	heartbeatCounter int
 	timestamp        int64
 	status           int
-	MemberList       MemberList
 	config           MemberServiceConfig
+	failedNodesList  []string
+
+	SelfIP string
+	SelfID string
+
 	// leave channel
-	LeaveChannel 	chan string
-}
-
-type MemberList struct {
-	memberInfo 		*MemberInfo
-	Members         map[string]map[string]int
-	failedNodesList []string
+	LeaveChannel chan string
 	// these two channels are used by upper level service
-	LeftNodesChan   chan []string
+	LeftNodesChan  chan []string
 	JoinedNodeChan chan string
+
+	Members map[string]map[string]int
 }
 
-
-
-func NewMemberList(d *MemberInfo) MemberList {
-	var m MemberList
-	m.memberInfo = d
-	// todo: m.table = f
-	m.JoinedNodeChan = make(chan string, 10) // todo:
-	m.LeftNodesChan = make(chan []string, 10) // todo:
-	m.Members = map[string]map[string]int{}
-	return m
+func getIpFromId(id string) string {
+	return strings.Split(id, "_")[0]
 }
 
-func (m *MemberList) UpdateMembership(message map[string]map[string]int) {
+func (ms *MemberServer) UpdateMembership(message map[string]map[string]int) {
 	for id, msg := range message {
-		if strings.Split(id, "_")[0] == m.memberInfo.config.Introducer {
-			_, ok := m.Members[m.memberInfo.config.Introducer]
+		if getIpFromId(id) == ms.config.Introducer {
+			_, ok := ms.Members[ms.config.Introducer]
 			if ok {
-				delete(m.Members, m.memberInfo.config.Introducer)
+				delete(ms.Members, ms.config.Introducer)
 			}
 		}
 		if msg["status"] == LEFT {
-			_, ok := m.Members[id]
-			if ok && m.Members[id]["status"] != LEFT {
-				m.Members[id] = map[string]int{
+			_, ok := ms.Members[id]
+			if ok && ms.Members[id]["status"] != LEFT {
+				ms.Members[id] = map[string]int{
 					"heartbeat": msg["heartbeat"],
 					"timestamp": int(time.Now().UnixNano() / int64(time.Millisecond)),
 					"status":    LEFT,
 				}
-				log.Println("[member left]", id, ":", m.Members[id])
+				log.Println("[member left]", id, ":", ms.Members[id])
 			}
 		} else if msg["status"] == JOINED {
-			_, ok := m.Members[id]
-			if !ok || msg["heartbeat"] > m.Members[id]["heartbeat"] {
-				m.Members[id] = map[string]int{
+			_, ok := ms.Members[id]
+			if !ok || msg["heartbeat"] > ms.Members[id]["heartbeat"] {
+				ms.Members[id] = map[string]int{
 					"heartbeat": msg["heartbeat"],
 					"timestamp": int(time.Now().UnixNano() / int64(time.Millisecond)),
 					"status":    JOINED,
 				}
 			}
 			if !ok {
-				// todo: m.table.AddEmptyEntry(strings.Split(id, "_")[0])
-				m.JoinedNodeChan <- strings.Split(id, "_")[0] //todo:
-				log.Println("[member joined]", id, ":", m.Members[id])
+				ms.JoinedNodeChan <- strings.Split(id, "_")[0]
+				log.Println("[member joined]", id, ":", ms.Members[id])
 			}
 		} else {
 			log.Println("ERROR unknown status")
@@ -104,41 +94,39 @@ func (m *MemberList) UpdateMembership(message map[string]map[string]int) {
 	}
 }
 
-func (m *MemberList) DetectFailure() {
-	for id, info := range m.Members {
-		if info["status"] == JOINED {
-			if int(time.Now().UnixNano() / int64(time.Millisecond))-info["timestamp"] > m.memberInfo.config.SuspectTime {
+func (ms *MemberServer) CheckFailure() {
+	for id, info := range ms.Members {
+		switch info["status"] {
+		case JOINED:
+			if int(time.Now().UnixNano()/int64(time.Millisecond))-info["timestamp"] > ms.config.SuspectTime {
 				info["status"] = SUSPECTED
-				log.Println("[suspected]", id, ":", m.Members[id])
+				log.Println("[suspected]", id, ":", ms.Members[id])
 			}
-		} else if info["status"] == SUSPECTED {
-			if int(time.Now().UnixNano() / int64(time.Millisecond))-info["timestamp"] > m.memberInfo.config.FailTime {
-				delete(m.Members, id)
-				m.failedNodesList = append(m.failedNodesList, strings.Split(id, "_")[0])
-				if len(m.failedNodesList) == 1 {
-					time.AfterFunc(4 * time.Second, func() {
-						// todo: m.table.RemoveFromTable(m.failedNodes)
-						m.LeftNodesChan <- m.failedNodesList // todo: fixing
-
-						m.failedNodesList = m.failedNodesList[:0]
+		case SUSPECTED:
+			if int(time.Now().UnixNano()/int64(time.Millisecond))-info["timestamp"] > ms.config.FailTime {
+				delete(ms.Members, id)
+				ms.failedNodesList = append(ms.failedNodesList, strings.Split(id, "_")[0])
+				if len(ms.failedNodesList) == 1 {
+					time.AfterFunc(4*time.Second, func() {
+						ms.LeftNodesChan <- ms.failedNodesList
+						ms.failedNodesList = ms.failedNodesList[:0]
 					})
 				}
-				log.Println("[failed]", id, ":", m.Members[id])
+				log.Println("[failed]", id, ":", ms.Members[id])
 			}
-		} else if info["status"] == LEFT {
-			if int(time.Now().UnixNano() / int64(time.Millisecond))-info["timestamp"] > m.memberInfo.config.RemoveTime {
-				delete(m.Members, id)
-				// todo: m.table.RemoveFromTable([]string{strings.Split(id, "_")[0]})
-				m.LeftNodesChan <- m.failedNodesList // todo: fixing
-				log.Println("[removed]", id, ":", m.Members[id])
+		case LEFT:
+			if int(time.Now().UnixNano()/int64(time.Millisecond))-info["timestamp"] > ms.config.RemoveTime {
+				delete(ms.Members, id)
+				ms.LeftNodesChan <- ms.failedNodesList
+				log.Println("[removed]", id, ":", ms.Members[id])
 			}
 		}
 	}
 }
 
-func (m *MemberList) FindGossipDest(status int) string {
+func (ms *MemberServer) FindGossipDest(status int) string {
 	var candidates []string
-	for id, info := range m.Members {
+	for id, info := range ms.Members {
 		if info["status"] == JOINED || info["status"] == status {
 			candidates = append(candidates, id)
 		}
@@ -148,48 +136,47 @@ func (m *MemberList) FindGossipDest(status int) string {
 	}
 	s := rand.NewSource(time.Now().UnixNano())
 	r := rand.New(s).Intn(len(candidates))
-	return strings.Split(candidates[r], "_")[0]
+	return getIpFromId(candidates[r])
 }
 
-
-
-func NewMemberService() MemberInfo {
-	var d MemberInfo
-	d.config = GetMemberServiceConfig()
-	d.Ip = FindLocalhostIp()
-	if d.Ip == "" {
+func NewMemberServer() MemberServer {
+	var ms MemberServer
+	ms.config = GetMemberServiceConfig()
+	ms.SelfIP = FindLocalhostIp()
+	if ms.SelfIP == "" {
 		log.Fatal("ERROR get localhost IP")
 	}
 	t := time.Now().UnixNano() / int64(time.Millisecond)
-	d.Id = d.Ip + "_" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	d.heartbeatCounter = 1
-	d.timestamp = t
-	d.status = JOINED
-	// todo: d.MemberList = NewMemberList(&d, filetableptr)
-	d.MemberList = NewMemberList(&d) //todo:
-	if d.Ip != d.config.Introducer {
-		id := d.MemberList.memberInfo.config.Introducer
-		d.MemberList.Members[id] = map[string]int{
+	ms.SelfID = ms.SelfIP + "_" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+	ms.heartbeatCounter = 1
+	ms.timestamp = t
+	ms.status = JOINED
+	ms.Members = map[string]map[string]int{}
+	ms.JoinedNodeChan = make(chan string, 10)
+	ms.LeftNodesChan = make(chan []string, 10)
+	if ms.SelfIP != ms.config.Introducer {
+		id := ms.config.Introducer
+		ms.Members[id] = map[string]int{
 			"heartbeat": 0,
 			"timestamp": 0,
 			"status":    ADDED,
 		}
-		log.Println("[introducer added]", id, ":", d.MemberList.Members[id])
+		logger.PrintInfo("[introducer added]", id, ":", ms.Members[id])
 	}
-	return d
+	return ms
 }
 
-func (d *MemberInfo) Heartbeat(leaving bool) {
-	d.heartbeatCounter += 1
-	d.timestamp = time.Now().UnixNano() / int64(time.Millisecond)
+func (ms *MemberServer) Heartbeat(leaving bool) {
+	ms.heartbeatCounter += 1
+	ms.timestamp = time.Now().UnixNano() / int64(time.Millisecond)
 	if leaving {
-		d.status = LEFT
+		ms.status = LEFT
 	}
 }
 
-func (d *MemberInfo) MakeMessage(dest string) map[string]map[string]int {
+func (ms *MemberServer) MakeMessage(dest string) map[string]map[string]int {
 	message := map[string]map[string]int{}
-	for id, info := range d.MemberList.Members {
+	for id, info := range ms.Members {
 		if (info["status"] == JOINED || info["status"] == LEFT) && strings.Split(id, "_")[0] != dest {
 			message[id] = map[string]int{
 				"heartbeat": info["heartbeat"],
@@ -197,24 +184,24 @@ func (d *MemberInfo) MakeMessage(dest string) map[string]map[string]int {
 			}
 		}
 	}
-	message[d.Id] = map[string]int{
-		"heartbeat": d.heartbeatCounter,
-		"status":    d.status,
+	message[ms.SelfID] = map[string]int{
+		"heartbeat": ms.heartbeatCounter,
+		"status":    ms.status,
 	}
 	return message
 }
 
-func (d *MemberInfo) Gossip() {
-	fmt.Println("Start to gossip")
+func (ms *MemberServer) Gossip() {
+	logger.PrintInfo("Start to gossip")
 	for {
 		mux.Lock()
-		d.MemberList.DetectFailure()
-		if d.status == LEAVING {
-			dest := d.MemberList.FindGossipDest(JOINED)
+		ms.CheckFailure()
+		if ms.status == LEAVING {
+			dest := ms.FindGossipDest(JOINED)
 			if dest != "" {
-				d.Heartbeat(true)
-				message := d.MakeMessage(dest)
-				conn, err := net.Dial("tcp", dest+":"+d.config.Port)
+				ms.Heartbeat(true)
+				message := ms.MakeMessage(dest)
+				conn, err := net.Dial("tcp", dest+":"+ms.config.Port)
 				if err == nil {
 					marshaled, err := json.Marshal(message)
 					if err == nil {
@@ -224,12 +211,12 @@ func (d *MemberInfo) Gossip() {
 				}
 			}
 			break
-		} else if d.status == JOINED {
-			dest := d.MemberList.FindGossipDest(ADDED)
+		} else if ms.status == JOINED {
+			dest := ms.FindGossipDest(ADDED)
 			if dest != "" {
-				d.Heartbeat(false)
-				message := d.MakeMessage(dest)
-				conn, err := net.Dial("tcp", dest+":"+d.config.Port)
+				ms.Heartbeat(false)
+				message := ms.MakeMessage(dest)
+				conn, err := net.Dial("tcp", dest+":"+ms.config.Port)
 				if err == nil {
 					marshaled, err := json.Marshal(message)
 					if err == nil {
@@ -242,18 +229,18 @@ func (d *MemberInfo) Gossip() {
 			log.Println("ERROR unknown status")
 		}
 		mux.Unlock()
-		time.Sleep(d.config.GossipInterval * time.Millisecond)
+		time.Sleep(ms.config.GossipInterval * time.Millisecond)
 	}
-	defer func() { d.LeaveChannel <- "OK" }()
+	defer func() { ms.LeaveChannel <- "OK" }()
 }
 
-func (d *MemberInfo) Listen() {
-	fmt.Println("Start to listen")
-	ln, err := net.Listen("tcp", ":"+d.config.Port)
+func (ms *MemberServer) ListenHeartbeat() {
+	logger.PrintInfo("Start to listen")
+	ln, err := net.Listen("tcp", ":"+ms.config.Port)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for ; d.status == JOINED; {
+	for ms.status == JOINED {
 		conn, err := ln.Accept()
 		if err != nil {
 			log.Fatal(err)
@@ -269,22 +256,22 @@ func (d *MemberInfo) Listen() {
 				log.Fatal(err)
 			}
 			mux.Lock()
-			d.MemberList.UpdateMembership(struct_msg)
+			ms.UpdateMembership(struct_msg)
 			mux.Unlock()
 		}
 		_ = conn.Close()
 	}
 }
 
-func (d *MemberInfo) Leave() {
-	d.status = LEAVING
-	log.Println("Leaving...")
-	<-d.LeaveChannel
-	log.Println("Left")
+func (ms *MemberServer) Leave() {
+	ms.status = LEAVING
+	logger.PrintInfo("Leaving...")
+	<-ms.LeaveChannel
+	logger.PrintInfo("Left successfully")
 }
 
-func (d *MemberInfo) Run() {
-	go d.Gossip()
-	go d.Listen()
-	fmt.Println("MemberInfo running...")
+func (ms *MemberServer) Run() {
+	go ms.Gossip()
+	go ms.ListenHeartbeat()
+	logger.PrintInfo("MemberServer running...")
 }

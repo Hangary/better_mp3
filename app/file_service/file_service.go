@@ -19,25 +19,18 @@ var promptChannel = make(chan string)
 var MyHash uint32
 
 type FileServer struct {
-	selfIP     string
-	MemberInfo member_service.MemberServer
-	FileTable  FileTable
-	config     FileServiceConfig
+	ms        *member_service.MemberServer
+	FileTable FileTable
+	config    FileServiceConfig
 }
 
-func NewFileServer(memberService member_service.MemberServer) FileServer {
+func NewFileServer(memberService *member_service.MemberServer) *FileServer {
 	var fs FileServer
 	fs.config = GetFileServiceConfig()
-	fs.selfIP = member_service.FindLocalhostIp()
-	if fs.selfIP == "" {
-		log.Fatal("ERROR get localhost IP")
-	}
+	fs.ms = memberService
 	fs.FileTable = NewFileTable(&fs)
-	fs.MemberInfo = memberService
-	go fs.FileTable.RunDaemon(
-		fs.MemberInfo.JoinedNodeChan,
-		fs.MemberInfo.LeftNodesChan)
-	return fs
+	go fs.RunDaemon()
+	return &fs
 }
 
 func (fs *FileServer) Run() {
@@ -55,7 +48,7 @@ func (fs *FileServer) LocalRep(filename string, success *bool) error {
 	} else {
 		for _, ip := range locations {
 			var buffer []byte
-			if ip == fs.selfIP {
+			if ip == fs.ms.SelfIP {
 				err := fs.LocalGet(filename, &buffer)
 				if err != nil {
 					continue
@@ -161,8 +154,9 @@ func (fs *FileServer) Put(local string, remote string) {
 	if err != nil {
 		log.Println(err)
 	}
-	for id, _ := range fs.MemberInfo.Members {
-		client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+fs.config.Port)
+
+	for _, memberIP := range fs.ms.GetAliveMemberIPList() {
+		client, err := rpc.Dial("tcp", memberIP+":"+fs.config.Port)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -188,7 +182,7 @@ func (fs *FileServer) Get(sdfs string, local string) {
 	} else {
 		for _, ip := range locations {
 			var buffer []byte
-			if ip == fs.selfIP {
+			if ip == fs.ms.SelfIP {
 				err := fs.LocalGet(sdfs, &buffer)
 				if err != nil {
 					continue
@@ -225,7 +219,7 @@ func (fs *FileServer) Delete(sdfs string) {
 		//fmt.Println(locations)
 		var success bool
 		for _, ip := range locations {
-			if ip == fs.selfIP {
+			if ip == fs.ms.SelfIP {
 				err := fs.LocalDel(sdfs, &success)
 				if err != nil {
 					log.Println(err)
@@ -247,8 +241,8 @@ func (fs *FileServer) Delete(sdfs string) {
 		if err != nil {
 			log.Println(err)
 		}
-		for id, _ := range fs.MemberInfo.Members {
-			client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+fs.config.Port)
+		for _, memberIP := range fs.ms.GetAliveMemberIPList() {
+			client, err := rpc.Dial("tcp", memberIP+":"+fs.config.Port)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -286,15 +280,15 @@ func (fs *FileServer) Append(content string, remote string) {
 	if err != nil {
 		log.Println(err)
 	}
-	for id, _ := range fs.MemberInfo.Members {
-		client, err := rpc.Dial("tcp", strings.Split(id, "_")[0]+":"+fs.config.Port)
+	for _, memberIP := range fs.ms.GetAliveMemberIPList() {
+		client, err := rpc.Dial("tcp", memberIP+ ":" + fs.config.Port)
 		if err != nil {
-			log.Println(err)
+			logger.PrintError(err)
 			continue
 		}
 		err = client.Call("FileRPCServer.PutEntry", remote, &success)
 		if err != nil {
-			log.Println(err)
+			logger.PrintError(err)
 			continue
 		}
 	}

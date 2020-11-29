@@ -2,6 +2,7 @@ package maple_juice_service
 
 import (
 	"better_mp3/app/file_service"
+	"better_mp3/app/logger"
 	"bufio"
 	"encoding/json"
 	"fmt"
@@ -23,15 +24,19 @@ type MapleJuiceServer struct {
 	fileServer *file_service.FileServer
 }
 
-func NewMapleJuiceServer(fileServer *file_service.FileServer) MapleJuiceServer {
+func NewMapleJuiceServer(fileServer *file_service.FileServer) *MapleJuiceServer {
 	var f MapleJuiceServer
 	f.config = GetMapleJuiceServiceConfig()
 	f.fileServer = fileServer
-	return f
+	return &f
 }
 
 func (mjServer MapleJuiceServer) Run() {
 	go RunMapleJuiceRPCServer(&mjServer)
+
+	logger.PrintInfo(
+		"MapleJuice Service is now running on port " + mjServer.config.Port,
+		"\n")
 }
 
 func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResult *string) error {

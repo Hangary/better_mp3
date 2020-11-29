@@ -21,28 +21,28 @@ type FileTableEntry struct {
 	files    []string
 }
 
-func NewFileTable(sev *FileServer) FileTable {
+func NewFileTable(fs *FileServer) FileTable {
 	var tb FileTable
-	tb.fileServer = sev
+	tb.fileServer = fs
 	tb.Storage = *treemap.NewWith(compare)
-	tb.AddEmptyEntry(sev.selfIP)
+	tb.AddEmptyEntry(fs.ms.SelfIP)
 	tb.latest = map[string]int64{}
-	MyHash = hash(sev.selfIP)
+	MyHash = hash(fs.ms.SelfIP)
 	return tb
 }
 
 /*
 	Monitor member list
  */
-func (t *FileTable) RunDaemon(joinedNodesChan chan string, leftNodesChan chan []string) {
+func (fs *FileServer) RunDaemon() {
 	for {
 		select {
-			case joinedNode := <- joinedNodesChan:
-				fmt.Println("FileTable: nodes joined", joinedNode)
-				t.AddEmptyEntry(joinedNode)
-			case leftNodes := <- leftNodesChan:
-				fmt.Println("FileTable: nodes left", leftNodes)
-				t.RemoveFromTable(leftNodes)
+			case joinedNode := <- fs.ms.JoinedNodeChan:
+				fmt.Println("FileTable: node joined", joinedNode)
+				fs.FileTable.AddEmptyEntry(joinedNode)
+			case failedNode := <- fs.ms.FailedNodeChan:
+				fmt.Println("FileTable: node left", failedNode)
+				fs.FileTable.RemoveFromTable(fs.ms.GetFailedMemberIPList())
 		}
 	}
 }

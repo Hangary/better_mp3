@@ -1,6 +1,7 @@
 package main
 
 import (
+	"better_mp3/app/command"
 	"better_mp3/app/file_service"
 	"better_mp3/app/logger"
 	"better_mp3/app/maple_juice_service"
@@ -13,69 +14,71 @@ import (
 )
 
 var (
-	memberService    member_service.MemberServer
-	fileService      file_service.FileServer
-	maplejuiceServer maple_juice_service.MapleJuiceServer
+	memberService    *member_service.MemberServer
+	fileService      *file_service.FileServer
+	maplejuiceServer *maple_juice_service.MapleJuiceServer
 )
 
-func HandleCommand(s *file_service.FileServer, mj *maple_juice_service.MapleJuiceServer) {
+func HandleCommand() {
 	inputReader := bufio.NewReader(os.Stdin)
 	for {
 		userInput, _ := inputReader.ReadString('\n')
-		command := strings.Split(strings.TrimSpace(userInput), " ")
+		userInputs := strings.Split(strings.TrimSpace(userInput), " ")
+		userCommand := command.Command{
+			Method: userInputs[0],
+			Params: userInputs[1:],
+		}
 
-		switch command[0] {
+		switch userCommand.Method {
 
 		// member related commands
-		case "member":
-			memberService.PrintMemberList()
-		case "leave":
-			memberService.Leave()
-		case "hash":
-			fmt.Println(file_service.MyHash)
-		case "ip":
-			fmt.Println(s.MemberInfo.SelfIP)
-		case "id":
-			fmt.Println(s.MemberInfo.SelfID)
+		case command.Join:
+			memberService.HandleJoin(userCommand)
+		case command.Display:
+			memberService.HandleDisplay(userCommand)
+		case command.Switch:
+			memberService.HandleSwitch(userCommand)
+		case command.Leave:
+			memberService.HandleLeave(userCommand)
 
 		// file related commands
 		case "put":
-			if len(command) == 3 {
+			if len(userInputs) == 3 {
 				start := time.Now()
-				s.TemptPut(command[1], command[2])
+				fileService.TemptPut(userInputs[1], userInputs[2])
 				fmt.Println(" time to put file is", time.Since(start))
 			}
 		case "get":
-			if len(command) == 3 {
+			if len(userInputs) == 3 {
 				start := time.Now()
-				s.Get(command[1], command[2])
+				fileService.Get(userInputs[1], userInputs[2])
 				fmt.Println(" time to get file is", time.Since(start))
 			}
 		case "delete":
-			if len(command) == 2 {
+			if len(userInputs) == 2 {
 				start := time.Now()
-				s.Delete(command[1])
+				fileService.Delete(userInputs[1])
 				fmt.Println(" time to delete file is", time.Since(start))
 			}
 		case "store":
-			s.FileTable.ListMyFiles()
+			fileService.FileTable.ListMyFiles()
 		case "ls":
-			fmt.Println(s.FileTable.ListLocations(command[1]))
+			fmt.Println(fileService.FileTable.ListLocations(userInputs[1]))
 		case "all":
-			s.FileTable.ListAllFiles()
+			fileService.FileTable.ListAllFiles()
 
 		// maple juice relate functions
 		case "maple":
-			if len(command) == 5 {
-				go mj.ScheduleMapleTask(command)
+			if len(userInputs) == 5 {
+				maplejuiceServer.ScheduleMapleTask(userInputs)
 			}
 		case "juice":
-			if len(command) == 5 || len(command) == 6 {
-				go mj.ScheduleJuiceTask(command)
+			if len(userInputs) == 5 || len(userInputs) == 6 {
+				maplejuiceServer.ScheduleJuiceTask(userInputs)
 			}
 
 		default:
-			logger.PrintWarning("Invalid command.")
+			logger.PrintWarning("Invalid userInputs.")
 		}
 
 	}
@@ -91,9 +94,9 @@ func main() {
 	fileService.Run()
 
 	logger.PrintInfo("Starting maple juice service...")
-	maplejuiceServer = maple_juice_service.NewMapleJuiceServer(&fileService)
+	maplejuiceServer = maple_juice_service.NewMapleJuiceServer(fileService)
 	maplejuiceServer.Run()
 
 	logger.PrintInfo("Setup complete! You can input command now.")
-	HandleCommand(&fileService, &maplejuiceServer)
+	HandleCommand()
 }

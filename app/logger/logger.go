@@ -4,6 +4,7 @@ This package contains logger-related utility.
 package logger
 
 import (
+	"better_mp3/app/config"
 	"fmt"
 	"log"
 	"os"
@@ -72,6 +73,8 @@ func PrintError(args ...interface{}) {
 
 func PrintDebug(args ...interface{}) {
 	ErrorLogger.Println(args)
-	fmt.Print(yellow("[DEBUG]" + getTimeString() + " "))
-	fmt.Println(args...)
+	if config.DebugMode {
+		fmt.Print(yellow("[DEBUG]" + getTimeString() + " "))
+		fmt.Println(args...)
+	}
 }

@@ -1,285 +1,230 @@
+/*
+This package provides member service, including:
+	1. membership list
+	2. failure detector
+	3. simple master election
+
+Credit: This package is adapted from CS425 Fall Recommended MP1 Solutions.
+*/
 package member_service
 
 import (
+	"better_mp3/app/config"
 	"better_mp3/app/logger"
-	"bufio"
-	"encoding/json"
-	"fmt"
-	"log"
-	"math/rand"
-	"net"
-	"strconv"
+	"better_mp3/app/member_service/protocol_buffer"
+	"github.com/golang/protobuf/ptypes"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 )
 
-const (
-	ADDED = iota
-	JOINED
-	SUSPECTED
-	LEAVING
-	LEFT
-)
-type Status int
-
-func FindLocalhostIp() string {
-	addrs, _ := net.InterfaceAddrs()
-	for _, address := range addrs {
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-			return ipnet.IP.String()
-		}
-	}
-	return ""
-}
-
-var mux sync.Mutex
-
 type MemberServer struct {
-	heartbeatCounter int
-	timestamp        int64
-	status           int
-	config           MemberServiceConfig
-	failedNodesList  []string
+	config       MemberServiceConfig
+	failureList  map[string]bool
+	useGossip    bool
+	localMessage *protocol_buffer.MembershipServiceMessage
+	mux          sync.Mutex
+
+	isSending bool
+	isJoining bool
 
 	SelfIP string
 	SelfID string
 
-	// leave channel
-	LeaveChannel chan string
-	// these two channels are used by upper level service
-	LeftNodesChan  chan []string
+	LeaderIP string
+	IsLeader bool
+
+	// these channels are used by upper level service
+	FailedNodeChan chan string
 	JoinedNodeChan chan string
-
-	Members map[string]map[string]int
+	MasterChanged  chan int
 }
 
-func getIpFromId(id string) string {
-	return strings.Split(id, "_")[0]
-}
-
-func (ms *MemberServer) UpdateMembership(message map[string]map[string]int) {
-	for id, msg := range message {
-		if getIpFromId(id) == ms.config.Introducer {
-			_, ok := ms.Members[ms.config.Introducer]
-			if ok {
-				delete(ms.Members, ms.config.Introducer)
-			}
-		}
-		if msg["status"] == LEFT {
-			_, ok := ms.Members[id]
-			if ok && ms.Members[id]["status"] != LEFT {
-				ms.Members[id] = map[string]int{
-					"heartbeat": msg["heartbeat"],
-					"timestamp": int(time.Now().UnixNano() / int64(time.Millisecond)),
-					"status":    LEFT,
-				}
-				log.Println("[member left]", id, ":", ms.Members[id])
-			}
-		} else if msg["status"] == JOINED {
-			_, ok := ms.Members[id]
-			if !ok || msg["heartbeat"] > ms.Members[id]["heartbeat"] {
-				ms.Members[id] = map[string]int{
-					"heartbeat": msg["heartbeat"],
-					"timestamp": int(time.Now().UnixNano() / int64(time.Millisecond)),
-					"status":    JOINED,
-				}
-			}
-			if !ok {
-				ms.JoinedNodeChan <- strings.Split(id, "_")[0]
-				log.Println("[member joined]", id, ":", ms.Members[id])
-			}
-		} else {
-			log.Println("ERROR unknown status")
-		}
-	}
-}
-
-func (ms *MemberServer) CheckFailure() {
-	for id, info := range ms.Members {
-		switch info["status"] {
-		case JOINED:
-			if int(time.Now().UnixNano()/int64(time.Millisecond))-info["timestamp"] > ms.config.SuspectTime {
-				info["status"] = SUSPECTED
-				log.Println("[suspected]", id, ":", ms.Members[id])
-			}
-		case SUSPECTED:
-			if int(time.Now().UnixNano()/int64(time.Millisecond))-info["timestamp"] > ms.config.FailTime {
-				delete(ms.Members, id)
-				ms.failedNodesList = append(ms.failedNodesList, strings.Split(id, "_")[0])
-				if len(ms.failedNodesList) == 1 {
-					time.AfterFunc(4*time.Second, func() {
-						ms.LeftNodesChan <- ms.failedNodesList
-						ms.failedNodesList = ms.failedNodesList[:0]
-					})
-				}
-				log.Println("[failed]", id, ":", ms.Members[id])
-			}
-		case LEFT:
-			if int(time.Now().UnixNano()/int64(time.Millisecond))-info["timestamp"] > ms.config.RemoveTime {
-				delete(ms.Members, id)
-				ms.LeftNodesChan <- ms.failedNodesList
-				log.Println("[removed]", id, ":", ms.Members[id])
-			}
-		}
-	}
-}
-
-func (ms *MemberServer) FindGossipDest(status int) string {
-	var candidates []string
-	for id, info := range ms.Members {
-		if info["status"] == JOINED || info["status"] == status {
-			candidates = append(candidates, id)
-		}
-	}
-	if len(candidates) == 0 {
-		return ""
-	}
-	s := rand.NewSource(time.Now().UnixNano())
-	r := rand.New(s).Intn(len(candidates))
-	return getIpFromId(candidates[r])
-}
-
-func NewMemberServer() MemberServer {
+func NewMemberServer() *MemberServer {
 	var ms MemberServer
+
+	ms.SelfIP = GetLocalIPAddr()
 	ms.config = GetMemberServiceConfig()
-	ms.SelfIP = FindLocalhostIp()
-	if ms.SelfIP == "" {
-		log.Fatal("ERROR get localhost IP")
-	}
-	t := time.Now().UnixNano() / int64(time.Millisecond)
-	ms.SelfID = ms.SelfIP + "_" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	ms.heartbeatCounter = 1
-	ms.timestamp = t
-	ms.status = JOINED
-	ms.Members = map[string]map[string]int{}
+	ms.LeaderIP = ms.config.Introducer
+	ms.IsLeader = ms.SelfIP == ms.config.Introducer
+	ms.useGossip = false // todo: change
+	ms.MasterChanged = make(chan int)
+	ms.isSending = true
+	ms.isJoining = !ms.IsLeader
+	ms.FailedNodeChan = make(chan string, 10)
 	ms.JoinedNodeChan = make(chan string, 10)
-	ms.LeftNodesChan = make(chan []string, 10)
-	if ms.SelfIP != ms.config.Introducer {
-		id := ms.config.Introducer
-		ms.Members[id] = map[string]int{
-			"heartbeat": 0,
-			"timestamp": 0,
-			"status":    ADDED,
-		}
-		logger.PrintInfo("[introducer added]", id, ":", ms.Members[id])
-	}
-	return ms
+	ms.failureList = make(map[string]bool)
+	ms.initMembershipList(ms.useGossip)
+
+
+
+	return &ms
 }
 
-func (ms *MemberServer) Heartbeat(leaving bool) {
-	ms.heartbeatCounter += 1
-	ms.timestamp = time.Now().UnixNano() / int64(time.Millisecond)
-	if leaving {
-		ms.status = LEFT
-	}
-}
-
-func (ms *MemberServer) MakeMessage(dest string) map[string]map[string]int {
-	message := map[string]map[string]int{}
-	for id, info := range ms.Members {
-		if (info["status"] == JOINED || info["status"] == LEFT) && strings.Split(id, "_")[0] != dest {
-			message[id] = map[string]int{
-				"heartbeat": info["heartbeat"],
-				"status":    info["status"],
-			}
-		}
-	}
-	message[ms.SelfID] = map[string]int{
-		"heartbeat": ms.heartbeatCounter,
-		"status":    ms.status,
-	}
-	return message
-}
-
-func (ms *MemberServer) Gossip() {
-	logger.PrintInfo("Start to gossip")
-	for {
-		mux.Lock()
-		ms.CheckFailure()
-		if ms.status == LEAVING {
-			dest := ms.FindGossipDest(JOINED)
-			if dest != "" {
-				ms.Heartbeat(true)
-				message := ms.MakeMessage(dest)
-				conn, err := net.Dial("tcp", dest+":"+ms.config.Port)
-				if err == nil {
-					marshaled, err := json.Marshal(message)
-					if err == nil {
-						_, _ = conn.Write([]byte(string(marshaled) + "\n"))
-					}
-					_ = conn.Close()
-				}
-			}
-			break
-		} else if ms.status == JOINED {
-			dest := ms.FindGossipDest(ADDED)
-			if dest != "" {
-				ms.Heartbeat(false)
-				message := ms.MakeMessage(dest)
-				conn, err := net.Dial("tcp", dest+":"+ms.config.Port)
-				if err == nil {
-					marshaled, err := json.Marshal(message)
-					if err == nil {
-						_, _ = conn.Write([]byte(string(marshaled) + "\n"))
-					}
-					_ = conn.Close()
-				}
-			}
-		} else {
-			log.Println("ERROR unknown status")
-		}
-		mux.Unlock()
-		time.Sleep(ms.config.GossipInterval * time.Millisecond)
-	}
-	defer func() { ms.LeaveChannel <- "OK" }()
-}
-
-func (ms *MemberServer) ListenHeartbeat() {
-	logger.PrintInfo("Start to listen")
-	ln, err := net.Listen("tcp", ":"+ms.config.Port)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for ms.status == JOINED {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
-		message, err := bufio.NewReader(conn).ReadString('\n')
-		if err != nil {
-			log.Fatal(err)
-		}
-		if message != "" {
-			var struct_msg map[string]map[string]int
-			err := json.Unmarshal([]byte(message), &struct_msg)
-			if err != nil {
-				log.Fatal(err)
-			}
-			mux.Lock()
-			ms.UpdateMembership(struct_msg)
-			mux.Unlock()
-		}
-		_ = conn.Close()
-	}
-}
-
-func (ms *MemberServer) PrintMemberList() {
-	fmt.Println(ms.Members)
-}
-
-func (ms *MemberServer) Leave() {
-	ms.status = LEAVING
-	logger.PrintInfo("Leaving...")
-	<-ms.LeaveChannel
-	logger.PrintInfo("Left successfully")
-}
-
+// the entry point of the package, run the member service
 func (ms *MemberServer) Run() {
-	go ms.Gossip()
-	go ms.ListenHeartbeat()
+	go Listen(config.MemberServicePort, ms.readNewMessage)
+	go ms.startHeartbeat()
+
 	logger.PrintInfo(
-		"Member Service is now running on port " + ms.config.Port,
-		"\n\tIntroducer: ", ms.config.Introducer,
-		"\n\tMember Self ID:", ms.SelfID)
+		"Member Service is now running\n",
+		"\tPort:", config.MemberServicePort,
+		"\tIs Master:", ms.IsLeader,
+		"\tMasterIP:", ms.LeaderIP,
+		"\tIs gossip:", ms.useGossip,
+		"\n",
+		"\tMember Self ID:", ms.SelfID)
+}
+
+/*
+	Following methods are exported for other packages so that they can access the membership list
+*/
+
+func (ms *MemberServer) GetAliveMemberIPList() []string {
+	ipList := make([]string, 0)
+	for machineID, member := range ms.localMessage.MemberList {
+		if !ms.failureList[machineID] && !member.IsLeaving {
+			//if machineID == selfID {
+			//	continue
+			//}
+			ip := strings.Split(machineID, ":")[0]
+			ipList = append(ipList, ip)
+		}
+	}
+	sort.Strings(ipList)
+	return ipList
+}
+
+func (ms *MemberServer) GetFailedMemberIPList() []string {
+	failNodes := make([]string, 0)
+	for k := range ms.failureList {
+		if ms.failureList[k] {
+			ip := strings.Split(k, ":")[0]
+			failNodes = append(failNodes, ip)
+		}
+	}
+	return failNodes
+}
+
+func (ms *MemberServer) ChangeStrategy(input string) {
+	if input == config.STRAT_GOSSIP {
+		if ms.localMessage.Strategy == config.STRAT_GOSSIP {
+			logger.PrintError("System strategy is already gossip")
+			return
+		}
+
+		ms.localMessage.Strategy = config.STRAT_GOSSIP
+	} else if input == config.STRAT_ALL {
+		if ms.localMessage.Strategy == config.STRAT_ALL {
+			logger.PrintError("System strategy is already all-to-all")
+			return
+		}
+
+		ms.localMessage.Strategy = config.STRAT_ALL
+	} else {
+		logger.PrintError("Invalid strategy - must be gossip or all")
+		return
+	}
+
+	ms.localMessage.StrategyCounter++
+	logger.PrintInfo("System strategy successfully changed to", ms.localMessage.Strategy)
+}
+
+func (ms *MemberServer) sendLeaveRequest() {
+	ms.isSending = false
+
+	ms.mux.Lock()
+	ms.localMessage.MemberList[ms.SelfID].IsLeaving = true
+
+	if ms.localMessage.Strategy == config.STRAT_GOSSIP {
+		HeartbeatGossip(ms.localMessage, config.GOSSIP_FANOUT, ms.SelfID)
+	} else {
+		HeartbeatAllToAll(ms.localMessage, ms.SelfID)
+	}
+	ms.mux.Unlock()
+
+	ms.SelfID = ""
+	ms.localMessage = nil
+	logger.PrintInfo("Successfully left")
+}
+
+func (ms *MemberServer) readNewMessage(message []byte) error {
+	if !ms.isSending {
+		return nil
+	}
+
+	remoteMessage, err := DecodeMembershipServiceMessage(message)
+	if err != nil {
+		return err
+	}
+	logger.PrintDebug("Member service received message:", remoteMessage)
+
+	ms.mux.Lock()
+
+	if ms.isJoining && remoteMessage.Type == protocol_buffer.MessageType_JOINREP {
+		ms.isJoining = false
+		ms.localMessage.Type = protocol_buffer.MessageType_STANDARD
+	}
+
+	if !ms.IsLeader && remoteMessage.Type == protocol_buffer.MessageType_JOINREQ {
+		ms.mux.Unlock()
+		return nil
+	}
+
+	logger.PrintDebug("Merging membership list.")
+	ms.mergeMembershipLists(ms.localMessage, remoteMessage, ms.failureList)
+
+	if ms.IsLeader && remoteMessage.Type == protocol_buffer.MessageType_JOINREQ {
+		logger.PrintInfo("Received a join request.")
+		ms.localMessage.Type = protocol_buffer.MessageType_JOINREP
+		message, err := EncodeMembershipServiceMessage(ms.localMessage)
+		ms.localMessage.Type = protocol_buffer.MessageType_STANDARD
+
+		if err != nil {
+			return err
+		}
+
+		dests := GetOtherMembershipListIPs(remoteMessage, ms.SelfID)
+		Send(dests[0], message)
+	}
+
+	ms.mux.Unlock()
+
+	return nil
+}
+
+func (ms *MemberServer) startHeartbeat() {
+	for ms.isSending {
+		ms.mux.Lock()
+
+		ms.localMessage.MemberList[ms.SelfID].LastSeen = ptypes.TimestampNow()
+		ms.localMessage.MemberList[ms.SelfID].HeartbeatCounter++
+		ms.CheckAndRemoveMembershipListFailures(ms.localMessage, &ms.failureList)
+		logger.InfoLogger.Println("Current memberlist:\n", ms.GetMembershipListString(ms.localMessage, ms.failureList), "\n")
+
+		if ms.isJoining {
+			message, _ := EncodeMembershipServiceMessage(ms.localMessage)
+			Send(ms.LeaderIP, message)
+			logger.PrintDebug("Member service sent Message:", ms.localMessage, "to", ms.LeaderIP)
+		} else {
+			if ms.localMessage.Strategy == config.STRAT_GOSSIP {
+				HeartbeatGossip(ms.localMessage, config.GOSSIP_FANOUT, ms.SelfID)
+			} else {
+				HeartbeatAllToAll(ms.localMessage, ms.SelfID)
+			}
+
+			for machineID := range ms.localMessage.MemberList {
+				if ms.localMessage.MemberList[machineID].IsLeaving && !ms.failureList[machineID] {
+					logger.PrintInfo("Received leave request from machine", machineID)
+					ms.failureList[machineID] = true
+					ms.FailedNodeChan <- strings.Split(machineID, ":")[0]
+				}
+			}
+		}
+
+		ms.mux.Unlock()
+
+		time.Sleep(config.PULSE_TIME * time.Millisecond)
+	}
 }

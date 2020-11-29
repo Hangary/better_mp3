@@ -1,0 +1,25 @@
+syntax = "proto3";
+package tutorial;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "./ProtoPackage";
+	
+message Member {
+  int32 HeartbeatCounter = 1;
+  google.protobuf.Timestamp LastSeen = 2;
+  bool IsLeaving = 3;
+}
+
+enum MessageType {
+  STANDARD = 0;
+  JOINREQ = 1;
+  JOINREP = 2;
+}
+
+message MembershipServiceMessage {
+  map<string, Member> MemberList = 1;
+  string Strategy = 2;
+  int32 StrategyCounter = 3;
+  MessageType Type = 4;
+}

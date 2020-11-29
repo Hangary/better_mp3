@@ -50,8 +50,8 @@ type MemberList struct {
 	Members         map[string]map[string]int
 	failedNodesList []string
 	// these two channels are used by upper level service
-	leftNodesChan   chan []string
-	joinedNodeChan chan string
+	LeftNodesChan   chan []string
+	JoinedNodeChan chan string
 }
 
 
@@ -60,8 +60,8 @@ func NewMemberList(d *MemberInfo) MemberList {
 	var m MemberList
 	m.memberInfo = d
 	// todo: m.table = f
-	m.joinedNodeChan = make(chan string, 10) // todo:
-	m.leftNodesChan = make(chan []string, 10) // todo:
+	m.JoinedNodeChan = make(chan string, 10) // todo:
+	m.LeftNodesChan = make(chan []string, 10) // todo:
 	m.Members = map[string]map[string]int{}
 	return m
 }
@@ -95,7 +95,7 @@ func (m *MemberList) UpdateMembership(message map[string]map[string]int) {
 			}
 			if !ok {
 				// todo: m.table.AddEmptyEntry(strings.Split(id, "_")[0])
-				m.joinedNodeChan <- strings.Split(id, "_")[0] //todo:
+				m.JoinedNodeChan <- strings.Split(id, "_")[0] //todo:
 				log.Println("[member joined]", id, ":", m.Members[id])
 			}
 		} else {
@@ -118,7 +118,7 @@ func (m *MemberList) DetectFailure() {
 				if len(m.failedNodesList) == 1 {
 					time.AfterFunc(4 * time.Second, func() {
 						// todo: m.table.RemoveFromTable(m.failedNodes)
-						m.leftNodesChan <- m.failedNodesList // todo: fixing
+						m.LeftNodesChan <- m.failedNodesList // todo: fixing
 
 						m.failedNodesList = m.failedNodesList[:0]
 					})
@@ -129,7 +129,7 @@ func (m *MemberList) DetectFailure() {
 			if int(time.Now().UnixNano() / int64(time.Millisecond))-info["timestamp"] > m.memberInfo.config.RemoveTime {
 				delete(m.Members, id)
 				// todo: m.table.RemoveFromTable([]string{strings.Split(id, "_")[0]})
-				m.leftNodesChan <- m.failedNodesList // todo: fixing
+				m.LeftNodesChan <- m.failedNodesList // todo: fixing
 				log.Println("[removed]", id, ":", m.Members[id])
 			}
 		}

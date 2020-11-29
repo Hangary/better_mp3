@@ -38,10 +38,10 @@ func (t *FileTable) RunDaemon(joinedNodesChan chan string, leftNodesChan chan []
 	for {
 		select {
 			case joinedNode := <- joinedNodesChan:
-				fmt.Println("FileTable: nodes joined")
+				fmt.Println("FileTable: nodes joined", joinedNode)
 				t.AddEmptyEntry(joinedNode)
 			case leftNodes := <- leftNodesChan:
-				fmt.Println("FileTable: nodes left")
+				fmt.Println("FileTable: nodes left", leftNodes)
 				t.RemoveFromTable(leftNodes)
 		}
 	}

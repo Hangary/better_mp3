@@ -33,6 +33,9 @@ func NewFileServer() FileServer {
 	}
 	f.FileTable = NewFileTable(&f)
 	f.MemberInfo = member_service.NewMemberService()
+	go f.FileTable.RunDaemon(
+		f.MemberInfo.MemberList.JoinedNodeChan,
+		f.MemberInfo.MemberList.LeftNodesChan)
 	return f
 }
 

@@ -15,15 +15,18 @@ import (
 	"strings"
 	"time"
 )
+func getOutputFileName(outputPrefix string, taskIndex int) string {
+	return outputPrefix + "-" + strconv.Itoa(taskIndex)
+}
 
-func (mjServer *MapleJuiceServer) HashBasedPartition(inputFileName string, taskNum int) {
+func (mjServer *MapleJuiceServer) HashBasedPartition(inputFileName string, outputPrefix string, taskNum int) {
 	logger.PrintInfo("Start partitioning")
 	// Partition input data (hash partitioning)
 
 	// open output files
 	outputFiles := map[int]*os.File{}
 	for i := 0; i < taskNum; i++ {
-		outputFile := path.Join(mjServer.config.InputDir, inputFileName + "-" + strconv.Itoa(i))
+		outputFile := path.Join(mjServer.config.InputDir, getOutputFileName(outputPrefix, i))
 		f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		outputFiles[i] = f
 		if err != nil {
@@ -71,21 +74,22 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	logger.PrintInfo("Start scheduling maple task...")
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
-	executable := cmd[1]
+	executableFileName := cmd[1]
+	executableFilePath := path.Join(mjServer.config.ExecDir, executableFileName)
 	taskNum, _ := strconv.Atoi(cmd[2])
-	filenamePrefix := cmd[3]
+	outputPrefix := cmd[3]
 	inputFileName := cmd[4]
 
-	mjServer.HashBasedPartition(inputFileName, taskNum)
+	mjServer.HashBasedPartition(inputFileName, outputPrefix, taskNum)
 
 	fmt.Println("Start scheduling")
 	// Schedule mapleTasks (in turn)
-	mjServer.fileServer.RemotePut(executable, executable)
+	mjServer.fileServer.RemotePut(executableFilePath, executableFileName)
 	mapleTasks := map[string]string{} // taskNum -> serverIP
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
 		// upload partitioned input file to sdfs
-		fileClip := path.Join(mjServer.config.InputDir, inputFileName + "-" + strconv.Itoa(i))
+		fileClip := path.Join(mjServer.config.InputDir, getOutputFileName(outputPrefix, i))
 		mjServer.fileServer.RemotePut(fileClip, strconv.Itoa(i))
 
 		if it.Next() == false {
@@ -117,8 +121,8 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		}
 		args := map[string]string{
 			"input":         inputFile,
-			"executable":   executable,
-			"output_prefix": filenamePrefix,
+			"executableFileName":    executableFileName,
+			"output_prefix": outputPrefix,
 		}
 		calls = append(calls,
 			RPCTask{
@@ -168,8 +172,8 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		}
 		args := map[string]string{
 			"input":         inputFile,
-			"executable":   executable,
-			"output_prefix": filenamePrefix,
+			"executableFileName":    executableFileName,
+			"output_prefix": outputPrefix,
 		}
 		newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunMapleTask", args, &newResults[cnt], nil))
 		cnt++
@@ -192,7 +196,8 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
-	executable := cmd[1]
+	executableFileName := cmd[1]
+	executableFilePath := path.Join(mjServer.config.ExecDir, executableFileName)     
 	taskNum, _ := strconv.Atoi(cmd[2])
 	filenamePrefix := cmd[3]
 	output := cmd[4]
@@ -204,7 +209,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 
 	fmt.Println("Start scheduling")
 	// Schedule tasks (in turn)
-	mjServer.fileServer.RemotePut(executable, executable)
+	mjServer.fileServer.RemotePut(executableFilePath, executableFileName)
 	var tasks []map[string]string
 	for i := 0; i < taskNum; i++ {
 		tasks = append(tasks, map[string]string{})
@@ -237,8 +242,8 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 				continue
 			}
 			args := map[string]string{
-				"input":       	inputFile,
-				"executable": 	executable,
+				"input":      inputFile,
+				"executableFileName": executableFileName,
 			}
 			calls = append(calls, RPCTask{inputFile, ip, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &juiceResults[cnt], nil)})
 			cnt++
@@ -287,8 +292,8 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 				log.Fatal(err)
 			}
 			args := map[string]string{
-				"input":       inputFile,
-				"executable": executable,
+				"input":      inputFile,
+				"executableFileName": executableFileName,
 			}
 			newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &newResults[cnt], nil))
 			cnt++

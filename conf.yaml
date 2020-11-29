@@ -20,5 +20,6 @@ file_service:
 maplejuice_service:
   port: 7009
   file_path: "./sdfs/"
-  app_path: "./maplejuice/"
+  tmp_path: "./maplejuice/"
   input_dir: "./input/"
+  exec_dir: "./exec/"

@@ -31,6 +31,8 @@ func NewMapleJuiceServer(fileServer *file_service.FileServer) MapleJuiceServer {
 }
 
 func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResult *string) error {
+	fmt.Println("Begin Running Maple Task")
+
 	inputFile := args["input"]
 	executable := args["executable"]
 	outputPrefix := args["output_prefix"]
@@ -99,6 +101,8 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 }
 
 func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResult *string) error {
+	fmt.Println("Begin Running Juice Task")
+
 	inputFile := args["input"]
 	executable := args["executable"]
 
@@ -131,6 +135,7 @@ func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResul
 	return nil
 }
 
+// FIXME:
 func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
@@ -141,28 +146,32 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 	fmt.Println("Starting partitioning")
 	// Partition input data (hash partitioning)
-	outFiles := map[string]*os.File{}
+
+	// open output files
+	outputFiles := map[string]*os.File{}
 	for i := 0; i < taskNum; i++ {
 		inputFile := path.Join(inputDir, strconv.Itoa(i))
 		f, err := os.OpenFile(inputFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-		outFiles["input"+strconv.Itoa(i)] = f
+		outputFiles["input"+strconv.Itoa(i)] = f
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-	file, err := os.Open(path.Join(inputDir, mjServer.config.InputFile))
+
+	// open input file
+	inputFile, err := os.Open(path.Join(inputDir, mjServer.config.InputFile))
 	if err != nil {
 		log.Fatal(err)
 	}
-	reader := bufio.NewReader(file)
+	inputFileReader := bufio.NewReader(inputFile)
 	var line string
 	lineNum := 1
 	for {
-		line, err = reader.ReadString('\n')
+		line, err = inputFileReader.ReadString('\n')
 		if err != nil {
 			break
 		}
-		if _, err = outFiles["input"+strconv.Itoa(lineNum%taskNum)].WriteString(line); err != nil {
+		if _, err = outputFiles["input"+strconv.Itoa(lineNum%taskNum)].WriteString(line); err != nil {
 			log.Fatal(err)
 		}
 		lineNum++
@@ -170,15 +179,20 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	if err != io.EOF {
 		fmt.Printf(" > Failed!: %v\n", err)
 	}
+
+	// close all output files
 	for i := 0; i < taskNum; i++ {
-		if err := outFiles["input"+strconv.Itoa(i)].Close(); err != nil {
+		if err := outputFiles["input"+strconv.Itoa(i)].Close(); err != nil {
 			log.Fatalln(err)
 		}
 	}
-	if err := file.Close(); err != nil {
+	// close input file
+	if err := inputFile.Close(); err != nil {
 		log.Fatalln(err)
 	}
 	fmt.Println("Done partitioning")
+
+
 
 	fmt.Println("Start scheduling")
 	// Schedule tasks (in turn)
@@ -196,6 +210,8 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	}
 	fmt.Println("Done scheduling")
 
+
+
 	fmt.Println("Start RPC")
 	// Asynchronous RPC
 	port := mjServer.config.Port
@@ -205,6 +221,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	mapleResults := make([]string, len(tasks))
 	cnt := 0
 	for inputFile, ip := range tasks {
+		fmt.Println("DEBUG: Dialing RPC for", inputFile, ip)
 		client, err := rpc.Dial("tcp", ip+":"+port)
 		if err != nil {
 			log.Println("Need rescheduling:  ", err)

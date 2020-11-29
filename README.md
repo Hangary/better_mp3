@@ -40,4 +40,8 @@ get <remote_filename> <local_filename>
       
 # To delete a file:
 delete <filename>
+
+# To call maple:
+maple <maple_exe> <num_maples> <sdfs_intermediate_filename_prefix> <sdfs_src_directory>
+
 ```

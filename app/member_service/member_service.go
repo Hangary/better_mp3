@@ -40,7 +40,7 @@ type MemberInfo struct {
 	timestamp        int64
 	status           int
 	MemberList       MemberList
-	config           DaemonConf
+	config           MemberServiceConfig
 	// leave channel
 	LeaveChannel 	chan string
 }

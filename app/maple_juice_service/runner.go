@@ -4,7 +4,6 @@ import (
 	"better_mp3/app/logger"
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -76,11 +75,12 @@ func (mjServer *MapleJuiceServer) RunMapleTask(task MapleJuiceTask, mapleResult 
 		mjServer.fileServer.RemoteAppend(strings.Join(value, "\n") + "\n", task.OutputPrefix + "_" + key)
 	}
 
+	logger.PrintInfo("Successfully finished maple task!")
 	return nil
 }
 
 func (mjServer *MapleJuiceServer) RunJuiceTask(task MapleJuiceTask, juiceResult *string) error {
-	fmt.Println("Start running Juice task")
+	fmt.Println("Start running Juice task...")
 
 	logger.PrintInfo("Getting executable file from SDFS...")
 	mjServer.fileServer.RemoteGet(
@@ -94,23 +94,17 @@ func (mjServer *MapleJuiceServer) RunJuiceTask(task MapleJuiceTask, juiceResult 
 
 	time.Sleep(time.Second)
 
-	//fmt.Println("Call juice function")
-	// Call juice function
-	var ret []byte
-	var err error
-	for {
-		cmd := exec.Command(
-			path.Join(mjServer.config.TmpDir, task.InputFileName),
-			path.Join(mjServer.config.TmpDir, task.InputFileName))
-		ret, err = cmd.CombinedOutput()
-		if err == nil {
-			break
-		}
-		log.Println(err)
+	logger.PrintInfo("Running juice executable...")
+	cmd := exec.Command(
+		path.Join(mjServer.config.TmpDir, task.ExecFileName),
+		path.Join(mjServer.config.TmpDir, task.InputFileName))
+	ret, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.PrintError(err)
 	}
 
-	//fmt.Println("RemoteGet juice results")
 	// RemoteGet the resulting key-value pair
+	logger.PrintInfo("Successfully finished juice task!")
 	*juiceResult = string(ret)
 	return nil
 }

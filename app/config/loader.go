@@ -17,10 +17,10 @@ type MemberServiceConfig struct {
 }
 
 type MapleJuiceServiceConfig struct {
-	Port      string `yaml:"port"`
-	FilePath  string `yaml:"file_path"`
-	AppPath   string `yaml:"app_path"`
-	InputFile string `yaml:"input_file"`
+	Port     string `yaml:"port"`
+	FilePath string `yaml:"file_path"`
+	AppPath  string `yaml:"app_path"`
+	InputDir string `yaml:"input_dir"`
 }
 
 type FileServiceConfig struct {

@@ -147,20 +147,21 @@ func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResul
 
 // FIXME:
 func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
+	logger.PrintInfo("Start scheduling maple task...")
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
 	executable := cmd[1]
 	taskNum, _ := strconv.Atoi(cmd[2])
 	filenamePrefix := cmd[3]
-	inputDir := cmd[4]
+	inputFileName := cmd[4]
 
-	fmt.Println("Starting partitioning")
+	logger.PrintInfo("Start partitioning")
 	// Partition input data (hash partitioning)
 
 	// open output files
 	outputFiles := map[string]*os.File{}
 	for i := 0; i < taskNum; i++ {
-		inputFile := path.Join(inputDir, strconv.Itoa(i))
+		inputFile := path.Join(inputFileName, strconv.Itoa(i))
 		f, err := os.OpenFile(inputFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		outputFiles["input"+strconv.Itoa(i)] = f
 		if err != nil {
@@ -169,7 +170,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	}
 
 	// open input file
-	inputFile, err := os.Open(path.Join(inputDir, mjServer.config.InputFile))
+	inputFile, err := os.Open(path.Join(mjServer.config.InputDir, inputFileName))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -211,7 +212,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
 		// upload partitioned input file to sdfs
-		inputFile := path.Join(inputDir, strconv.Itoa(i))
+		inputFile := path.Join(inputFileName, strconv.Itoa(i))
 		mjServer.fileServer.RemotePut(inputFile, strconv.Itoa(i))
 
 		if it.Next() == false {
@@ -316,6 +317,8 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 }
 
 func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
+	logger.PrintInfo("Start scheduling maple task...")
+
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
 	executable := cmd[1]
@@ -323,7 +326,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 	filenamePrefix := cmd[3]
 	output := cmd[4]
 
-	fmt.Println("Start searching")
+	fmt.Println("Start searching for maple result files")
 	// Find intermediate files
 	files := mjServer.fileServer.FileTable.ListFilesByPrefix(filenamePrefix)
 	fmt.Println("Done searching")

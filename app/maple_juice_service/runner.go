@@ -66,6 +66,8 @@ func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResu
 		}
 		*mapleResult = strings.Join(results, "\n")
 
+		fmt.Println("DEBUG: output is ", *mapleResult)
+
 		//fmt.Println("Write maple results")
 		// RemoteAppend intermediate result to DFS
 		reg, err := regexp.Compile("[^a-zA-Z0-9]+")

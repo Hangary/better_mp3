@@ -1,0 +1,24 @@
+debug: false
+buffer_size: 8192
+
+member_service:
+  introducer_ip: 172.22.156.22
+  port: 7008
+  gossip_interval: 0.2
+  suspect_time: 2
+  fail_time: 4
+  remove_time: 2
+  TimeOut: 5
+  CleanUpTime: 40
+  WaitTimeForElection: 10
+
+file_service:
+  port: 7007
+  path: "./sdfs/"
+  replicaNum: 4
+
+maplejuice_service:
+  port: 7009
+  file_path: "./sdfs/"
+  app_path: "./maplejuice/"
+  input_file: "input"

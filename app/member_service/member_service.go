@@ -20,7 +20,7 @@ import (
 )
 
 type MemberServer struct {
-	config       MemberServiceConfig
+	config       config.MemberServiceConfig
 	failureList  map[string]bool
 	useGossip    bool
 	localMessage *protocol_buffer.MembershipServiceMessage
@@ -45,9 +45,9 @@ func NewMemberServer() *MemberServer {
 	var ms MemberServer
 
 	ms.SelfIP = GetLocalIPAddr()
-	ms.config = GetMemberServiceConfig()
-	ms.LeaderIP = ms.config.Introducer
-	ms.IsLeader = ms.SelfIP == ms.config.Introducer
+	ms.config = config.GetMemberServiceConfig()
+	ms.LeaderIP = ms.config.IntroducerIP
+	ms.IsLeader = ms.SelfIP == ms.config.IntroducerIP
 	ms.useGossip = false // todo: change
 	ms.MasterChanged = make(chan int)
 	ms.isSending = true

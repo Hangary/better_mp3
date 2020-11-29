@@ -1,6 +1,7 @@
 package file_service
 
 import (
+	config2 "better_mp3/app/config"
 	"better_mp3/app/logger"
 	"better_mp3/app/member_service"
 	"bufio"
@@ -21,12 +22,12 @@ var MyHash uint32
 type FileServer struct {
 	ms        *member_service.MemberServer
 	FileTable FileTable
-	config    FileServiceConfig
+	config    config2.FileServiceConfig
 }
 
 func NewFileServer(memberService *member_service.MemberServer) *FileServer {
 	var fs FileServer
-	fs.config = GetFileServiceConfig()
+	fs.config = config2.GetFileServiceConfig()
 	fs.ms = memberService
 	fs.FileTable = NewFileTable(&fs)
 	go fs.RunDaemon()

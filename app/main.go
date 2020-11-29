@@ -2,6 +2,7 @@ package main
 
 import (
 	"better_mp3/app/command"
+	"better_mp3/app/config"
 	"better_mp3/app/file_service"
 	"better_mp3/app/logger"
 	"better_mp3/app/maple_juice_service"
@@ -85,6 +86,9 @@ func HandleCommand() {
 }
 
 func main() {
+	logger.PrintInfo("Loading config...")
+	config.LoadConfig("./conf.yaml")
+
 	logger.PrintInfo("Starting member service...")
 	memberService = member_service.NewMemberServer()
 	memberService.Run()

@@ -102,6 +102,7 @@ func (mjServer *MapleJuiceServer) RunJuiceTask(task MapleJuiceTask, juiceResult 
 	if err != nil {
 		logger.PrintError(err)
 	}
+	logger.PrintInfo("DEBUG:", ret)
 
 	// RemoteGet the resulting key-value pair
 	logger.PrintInfo("Successfully finished juice task!")

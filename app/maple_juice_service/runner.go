@@ -23,15 +23,15 @@ func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResu
 
 	fmt.Println("Getting executable from SDFS")
 	// RemoteGet executable from DFS
-	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.TmpPath, executable))
+	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.TmpDir, executable))
 
 	fmt.Println("Getting input from SDFS")
 	// RemoteGet input file from DFS
-	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.TmpPath, inputFile))
+	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.TmpDir, inputFile))
 
 	//fmt.Println("Call maple function")
 	// Call maple function (10 lines at a time)
-	f, err := os.Open(path.Join(mjServer.config.TmpPath, inputFile))
+	f, err := os.Open(path.Join(mjServer.config.TmpDir, inputFile))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -48,8 +48,8 @@ func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResu
 		if len(content) == 0 {
 			break
 		}
-		fmt.Println("DEBUG:", path.Join(mjServer.config.TmpPath, executable))
-		cmd := exec.Command(path.Join(mjServer.config.TmpPath, executable), strings.Join(content, "\n"))
+		fmt.Println("DEBUG:", path.Join(mjServer.config.TmpDir, executable))
+		cmd := exec.Command(path.Join(mjServer.config.TmpDir, executable), strings.Join(content, "\n"))
 		ret, err := cmd.CombinedOutput()
 		if err != nil {
 			logger.PrintError("Application error: ", err)
@@ -93,11 +93,11 @@ func (mjServer *MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResu
 
 	//fmt.Println("RemoteGet executable from DFS")
 	// RemoteGet executable executable from DFS
-	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.TmpPath, executable))
+	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.TmpDir, executable))
 
 	//fmt.Println("RemoteGet input from DFS")
 	// RemoteGet input file from DFS
-	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.TmpPath, inputFile))
+	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.TmpDir, inputFile))
 
 	time.Sleep(time.Second)
 
@@ -106,7 +106,7 @@ func (mjServer *MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResu
 	var ret []byte
 	var err error
 	for {
-		cmd := exec.Command(path.Join(mjServer.config.TmpPath, executable), path.Join(mjServer.config.TmpPath, inputFile))
+		cmd := exec.Command(path.Join(mjServer.config.TmpDir, executable), path.Join(mjServer.config.TmpDir, inputFile))
 		ret, err = cmd.CombinedOutput()
 		if err == nil {
 			break

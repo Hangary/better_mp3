@@ -121,7 +121,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		}
 		args := map[string]string{
 			"input":         inputFile,
-			"executableFileName":    executableFileName,
+			"executable":    executableFileName,
 			"output_prefix": outputPrefix,
 		}
 		calls = append(calls,
@@ -172,7 +172,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		}
 		args := map[string]string{
 			"input":         inputFile,
-			"executableFileName":    executableFileName,
+			"executable":    executableFileName,
 			"output_prefix": outputPrefix,
 		}
 		newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunMapleTask", args, &newResults[cnt], nil))
@@ -243,7 +243,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 			}
 			args := map[string]string{
 				"input":      inputFile,
-				"executableFileName": executableFileName,
+				"executable": executableFileName,
 			}
 			calls = append(calls, RPCTask{inputFile, ip, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &juiceResults[cnt], nil)})
 			cnt++
@@ -293,7 +293,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 			}
 			args := map[string]string{
 				"input":      inputFile,
-				"executableFileName": executableFileName,
+				"executable": executableFileName,
 			}
 			newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &newResults[cnt], nil))
 			cnt++

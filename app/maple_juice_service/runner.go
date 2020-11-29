@@ -14,6 +14,15 @@ import (
 	"time"
 )
 
+// execute maple_exe and get result file
+func execute(exe string, inputFile string, resFileName string) error {
+	execname := exe
+	inputFileName := inputFile
+	cmd := "./" + execname + "<" + inputFileName + ">" + resFileName
+	_, err := exec.Command("/bin/sh", "-c", cmd).Output()
+	return err
+}
+
 func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResult *string) error {
 	fmt.Println("Start running Maple task")
 
@@ -21,15 +30,23 @@ func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResu
 	executable := args["executable"]
 	outputPrefix := args["output_prefix"]
 
-	fmt.Println("Getting executable from SDFS")
-	// RemoteGet executable from DFS
+	logger.PrintInfo("Getting executable file from SDFS...")
 	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.TmpDir, executable))
 
-	fmt.Println("Getting input from SDFS")
-	// RemoteGet input file from DFS
+	logger.PrintInfo("Getting input file clip from SDFS...")
 	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.TmpDir, inputFile))
 
-	//fmt.Println("Call maple function")
+	// TODO:
+	logger.PrintInfo("Running Maple Executable...")
+	err := execute(
+		path.Join(mjServer.config.TmpDir, executable),
+		path.Join(mjServer.config.TmpDir, inputFile),
+		path.Join(mjServer.config.TmpDir, outputPrefix + "-" + "DEBUG"))
+	if err != nil {
+		logger.PrintError(err)
+	}
+	// TODO:
+
 	// Call maple function (10 lines at a time)
 	f, err := os.Open(path.Join(mjServer.config.TmpDir, inputFile))
 	if err != nil {

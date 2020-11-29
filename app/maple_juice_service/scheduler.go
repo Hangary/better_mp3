@@ -74,8 +74,8 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	logger.PrintInfo("Start scheduling maple task...")
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
-	executableFileName := cmd[1]
-	executableFilePath := path.Join(mjServer.config.ExecDir, executableFileName)
+	execFileName := cmd[1]
+	executableFilePath := path.Join(mjServer.config.ExecDir, execFileName)
 	taskNum, _ := strconv.Atoi(cmd[2])
 	outputPrefix := cmd[3]
 	inputFileName := cmd[4]
@@ -84,7 +84,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 	fmt.Println("Start scheduling")
 	// Schedule mapleTasks (in turn)
-	mjServer.fileServer.RemotePut(executableFilePath, executableFileName)
+	mjServer.fileServer.RemotePut(executableFilePath, execFileName)
 	mapleTasks := map[string]string{} // taskNum -> serverIP
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
@@ -119,16 +119,20 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 			failedIP = append(failedIP, ip)
 			continue
 		}
-		args := map[string]string{
-			"input":         inputFile,
-			"executable":    executableFileName,
-			"output_prefix": outputPrefix,
-		}
+
 		calls = append(calls,
 			RPCTask{
 				inputFile,
 				ip,
-				*client.Go("MapleJuiceRPCServer.RunMapleTask", args, &mapleResults[cnt], nil),
+				*client.Go(
+					"MapleJuiceRPCServer.RunMapleTask",
+					MapleJuiceTask{
+						InputFileName: inputFile,
+						ExecFileName:  execFileName,
+						OutputPrefix:  outputPrefix,
+					},
+					&mapleResults[cnt],
+					nil),
 			})
 		cnt++
 	}
@@ -170,12 +174,18 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		args := map[string]string{
-			"input":         inputFile,
-			"executable":    executableFileName,
-			"output_prefix": outputPrefix,
-		}
-		newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunMapleTask", args, &newResults[cnt], nil))
+
+		newCalls = append(
+			newCalls,
+			*client.Go(
+				"MapleJuiceRPCServer.RunMapleTask",
+				MapleJuiceTask{
+					InputFileName: inputFile,
+					ExecFileName:  execFileName,
+					OutputPrefix:  outputPrefix,
+				},
+				&newResults[cnt],
+				nil))
 		cnt++
 	}
 
@@ -196,8 +206,8 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
-	executableFileName := cmd[1]
-	executableFilePath := path.Join(mjServer.config.ExecDir, executableFileName)     
+	execFileName := cmd[1]
+	executableFilePath := path.Join(mjServer.config.ExecDir, execFileName)
 	taskNum, _ := strconv.Atoi(cmd[2])
 	filenamePrefix := cmd[3]
 	output := cmd[4]
@@ -209,7 +219,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 
 	fmt.Println("Start scheduling")
 	// Schedule tasks (in turn)
-	mjServer.fileServer.RemotePut(executableFilePath, executableFileName)
+	mjServer.fileServer.RemotePut(executableFilePath, execFileName)
 	var tasks []map[string]string
 	for i := 0; i < taskNum; i++ {
 		tasks = append(tasks, map[string]string{})
@@ -241,11 +251,14 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 				failedIP = append(failedIP, ip)
 				continue
 			}
-			args := map[string]string{
-				"input":      inputFile,
-				"executable": executableFileName,
-			}
-			calls = append(calls, RPCTask{inputFile, ip, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &juiceResults[cnt], nil)})
+
+			calls = append(calls,
+				RPCTask{inputFile, ip,
+					*client.Go("MapleJuiceRPCServer.RunJuiceTask",
+						MapleJuiceTask{
+							InputFileName: inputFile,
+							ExecFileName:  execFileName,
+						}, &juiceResults[cnt], nil)})
 			cnt++
 		}
 	}
@@ -291,11 +304,15 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 			if err != nil {
 				log.Fatal(err)
 			}
-			args := map[string]string{
-				"input":      inputFile,
-				"executable": executableFileName,
-			}
-			newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &newResults[cnt], nil))
+			newCalls = append(
+				newCalls,
+				*client.Go(
+					"MapleJuiceRPCServer.RunJuiceTask",
+					MapleJuiceTask{
+						InputFileName: inputFile,
+						ExecFileName:  execFileName,
+					},
+					&newResults[cnt], nil))
 			cnt++
 		}
 	}

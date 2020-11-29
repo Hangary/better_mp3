@@ -3,121 +3,94 @@ package maple_juice_service
 import (
 	"better_mp3/app/logger"
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 )
 
 // execute maple_exe and get result file
-func execute(exe string, inputFile string, resFileName string) error {
-	execname := exe
-	inputFileName := inputFile
-	cmd := "./" + execname + "<" + inputFileName + ">" + resFileName
+func execute(execFileName string, inputFileName string, outputFileName string) error {
+	cmd := "./" + execFileName + "<" + inputFileName + ">" + outputFileName
 	_, err := exec.Command("/bin/sh", "-c", cmd).Output()
 	return err
 }
 
-func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResult *string) error {
+// return key-value pair
+func splitMapleResultFile(resultFileName string) (kv map[string][]string, err error) {
+	file, err := os.Open(resultFileName) // May need to updated to filePath
+	if err != nil {
+		fmt.Println("Can not open the maple_result file!")
+		return nil, err
+	}
+	defer file.Close()
+
+	kv = make(map[string][]string)
+	result := bufio.NewScanner(file)
+	for result.Scan() {
+		currLine := result.Text()
+		currLine = strings.TrimSpace(currLine)
+		currLineSplit := strings.Split(currLine, " ")
+		key := currLineSplit[0]
+
+		kv[key] = append(kv[key], currLine)
+	}
+	return
+}
+
+
+func (mjServer *MapleJuiceServer) RunMapleTask(task MapleJuiceTask, mapleResult *string) error {
 	fmt.Println("Start running Maple task")
 
-	inputFile := args["input"]
-	executable := args["executable"]
-	outputPrefix := args["output_prefix"]
-
 	logger.PrintInfo("Getting executable file from SDFS...")
-	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.TmpDir, executable))
+	mjServer.fileServer.RemoteGet(
+		task.ExecFileName,
+		path.Join(mjServer.config.TmpDir, task.ExecFileName))
 
 	logger.PrintInfo("Getting input file clip from SDFS...")
-	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.TmpDir, inputFile))
+	mjServer.fileServer.RemoteGet(
+		task.InputFileName,
+		path.Join(mjServer.config.TmpDir, task.InputFileName))
 
-	// TODO:
-	logger.PrintInfo("Running Maple Executable...")
+	logger.PrintInfo("Running maple executable...")
 	err := execute(
-		path.Join(mjServer.config.TmpDir, executable),
-		path.Join(mjServer.config.TmpDir, inputFile),
-		path.Join(mjServer.config.TmpDir, outputPrefix + "-" + "DEBUG"))
+		path.Join(mjServer.config.TmpDir, task.ExecFileName),
+		path.Join(mjServer.config.TmpDir, task.InputFileName),
+		path.Join(mjServer.config.TmpDir, task.OutputPrefix + "-" + "TMP"))
 	if err != nil {
 		logger.PrintError(err)
 	}
-	// TODO:
 
-	// Call maple function (10 lines at a time)
-	f, err := os.Open(path.Join(mjServer.config.TmpDir, inputFile))
+	logger.PrintInfo("Splitting maple result...")
+	kv, err := splitMapleResultFile(path.Join(mjServer.config.TmpDir, task.OutputPrefix + "-" + "TMP"))
 	if err != nil {
-		log.Fatalln(err)
+		logger.PrintError(err)
+		return err
 	}
-	reader := bufio.NewReader(f)
-	for {
-		var content []string
-		for i := 0; i < 10; i++ {
-			str, err := reader.ReadString('\n')
-			if err != nil {
-				break
-			}
-			content = append(content, str)
-		}
-		if len(content) == 0 {
-			break
-		}
-		fmt.Println("DEBUG: input is ", content)
-		cmd := exec.Command(path.Join(mjServer.config.TmpDir, executable), strings.Join(content, "\n"))
-		ret, err := cmd.CombinedOutput()
-		if err != nil {
-			logger.PrintError("Application error: ", err)
-			return err
-		}
-		fmt.Println("DEBUG: output is ", ret)
 
-		//fmt.Println("RemoteGet maple results")
-		// RemoteGet resulting key-value pairs
-		var results []string
-		err = json.Unmarshal(ret, &results)
-		if err != nil {
-			log.Println(err)
-		}
-		*mapleResult = strings.Join(results, "\n")
-
-		fmt.Println("DEBUG: output is ", *mapleResult)
-
-		//fmt.Println("Write maple results")
-		// RemoteAppend intermediate result to DFS
-		reg, err := regexp.Compile("[^a-zA-Z0-9]+")
-		if err != nil {
-			log.Fatalln(err)
-		}
-		for _, pair := range results {
-			tmp := strings.Split(pair, ",")
-			key := reg.ReplaceAllString(tmp[0], "")
-			mjServer.fileServer.RemoteAppend(pair + "\n", outputPrefix+"_"+key)
-			//time.Sleep(time.Millisecond * 200)
-		}
-	}
-	if err := f.Close(); err != nil {
-		log.Fatalln(err)
+	logger.PrintInfo("Uploading maple result...")
+	for key, value := range kv {
+		mjServer.fileServer.RemoteAppend(strings.Join(value, "\n") + "\n", task.OutputPrefix + "_" + key)
 	}
 
 	return nil
 }
 
-func (mjServer *MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResult *string) error {
+func (mjServer *MapleJuiceServer) RunJuiceTask(task MapleJuiceTask, juiceResult *string) error {
 	fmt.Println("Start running Juice task")
 
-	inputFile := args["input"]
-	executable := args["executable"]
+	logger.PrintInfo("Getting executable file from SDFS...")
+	mjServer.fileServer.RemoteGet(
+		task.ExecFileName,
+		path.Join(mjServer.config.TmpDir, task.ExecFileName))
 
-	//fmt.Println("RemoteGet executable from DFS")
-	// RemoteGet executable executable from DFS
-	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.TmpDir, executable))
-
-	//fmt.Println("RemoteGet input from DFS")
-	// RemoteGet input file from DFS
-	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.TmpDir, inputFile))
+	logger.PrintInfo("Getting input file clip from SDFS...")
+	mjServer.fileServer.RemoteGet(
+		task.InputFileName,
+		path.Join(mjServer.config.TmpDir, task.InputFileName))
 
 	time.Sleep(time.Second)
 
@@ -126,7 +99,9 @@ func (mjServer *MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResu
 	var ret []byte
 	var err error
 	for {
-		cmd := exec.Command(path.Join(mjServer.config.TmpDir, executable), path.Join(mjServer.config.TmpDir, inputFile))
+		cmd := exec.Command(
+			path.Join(mjServer.config.TmpDir, task.InputFileName),
+			path.Join(mjServer.config.TmpDir, task.InputFileName))
 		ret, err = cmd.CombinedOutput()
 		if err == nil {
 			break

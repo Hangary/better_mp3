@@ -30,10 +30,10 @@ func RunMapleJuiceRPCServer(mjServer *MapleJuiceServer) {
 	}
 }
 
-func (s MapleJuiceRPCServer) RunMapleTask(args map[string]string, mapleResult *string) error {
-	return s.mjServer.RunMapleTask(args, mapleResult)
+func (s MapleJuiceRPCServer) RunMapleTask(task MapleJuiceTask, mapleResult *string) error {
+	return s.mjServer.RunMapleTask(task, mapleResult)
 }
 
-func (s MapleJuiceRPCServer) RunJuiceTask(args map[string]string, juiceResult *string) error {
-	return s.mjServer.RunJuiceTask(args, juiceResult)
+func (s MapleJuiceRPCServer) RunJuiceTask(task MapleJuiceTask, juiceResult *string) error {
+	return s.mjServer.RunJuiceTask(task, juiceResult)
 }

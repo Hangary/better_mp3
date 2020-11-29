@@ -11,6 +11,12 @@ type MapleJuiceServer struct {
 	fileServer *file_service.FileServer
 }
 
+type MapleJuiceTask struct {
+	InputFileName string
+	ExecFileName string
+	OutputPrefix string
+}
+
 func NewMapleJuiceServer(fileServer *file_service.FileServer) *MapleJuiceServer {
 	var f MapleJuiceServer
 	f.config = config.GetMapleJuiceServiceConfig()

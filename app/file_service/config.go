@@ -13,7 +13,7 @@ type FileServiceConfig struct {
 
 func GetFileServiceConfig() FileServiceConfig {
 	var c FileServiceConfig
-	yamlFile, err := ioutil.ReadFile("conf_server.yaml")
+	yamlFile, err := ioutil.ReadFile("conf_sdfs.yaml")
 	if err != nil {
 		log.Fatal("ERROR get yaml file: %v", err)
 	}

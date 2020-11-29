@@ -19,7 +19,7 @@ type MemberServiceConfig struct {
 
 func GetMemberServiceConfig() MemberServiceConfig {
 	var c MemberServiceConfig
-	yamlFile, err := ioutil.ReadFile("conf_daemon.yaml")
+	yamlFile, err := ioutil.ReadFile("conf_member.yaml")
 	if err != nil {
 		log.Fatal("ERROR get yaml file: %v", err)
 	}

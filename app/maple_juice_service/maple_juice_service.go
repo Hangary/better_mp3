@@ -217,17 +217,22 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 			"application":   application,
 			"output_prefix": filenamePrefix,
 		}
-		calls = append(calls, RPCTask{inputFile, ip, *client.Go("MapleJuiceRPCServer.Maple", args, &mapleResults[cnt], nil)})
+		calls = append(calls,
+			RPCTask{
+			inputFile,
+			ip,
+			*client.Go("MapleJuiceRPCServer.RunMapleTask", args, &mapleResults[cnt], nil),
+			})
 		cnt++
 	}
 
-	// Synchronization
-	for _, tmp := range calls {
-		replyCall := <-tmp.call.Done
+	// Wait for all replies done
+	for _, call := range calls {
+		replyCall := <-call.call.Done
 		if replyCall.Error != nil {
-			log.Println("Need rescheduling:  ", replyCall.Error)
-			unfinishedTasks = append(unfinishedTasks, tmp.fileName)
-			failedIP = append(failedIP, tmp.ip)
+			log.Println("Some tasks failed. Rescheduling is needed!", replyCall.Error)
+			unfinishedTasks = append(unfinishedTasks, call.fileName)
+			failedIP = append(failedIP, call.ip)
 			continue
 		}
 	}
@@ -263,7 +268,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 			"application":   application,
 			"output_prefix": filenamePrefix,
 		}
-		newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.Maple", args, &newResults[cnt], nil))
+		newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunMapleTask", args, &newResults[cnt], nil))
 		cnt++
 	}
 
@@ -330,7 +335,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 				"input":       inputFile,
 				"application": application,
 			}
-			calls = append(calls, RPCTask{inputFile, ip, *client.Go("MapleJuiceRPCServer.Juice", args, &juiceResults[cnt], nil)})
+			calls = append(calls, RPCTask{inputFile, ip, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &juiceResults[cnt], nil)})
 			cnt++
 		}
 	}
@@ -380,7 +385,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 				"input":       inputFile,
 				"application": application,
 			}
-			newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.Juice", args, &newResults[cnt], nil))
+			newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &newResults[cnt], nil))
 			cnt++
 		}
 	}

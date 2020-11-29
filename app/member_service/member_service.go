@@ -1,7 +1,7 @@
 package member_service
 
 import (
-	"ToyRaftDB/logger"
+	"better_mp3/app/logger"
 	"bufio"
 	"encoding/json"
 	"log"

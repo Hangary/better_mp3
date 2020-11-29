@@ -24,10 +24,10 @@ func (ms *MemberServer) HandleDisplay(command command.Command) {
 		param = ""
 	}
 
-	if param == "membership" {
+	if param == "member" {
 		if ms.localMessage != nil {
 			ms.mux.Lock()
-			logger.PrintInfo(
+			logger.PrintToConsole(
 				"Printing membership list:\n",
 				ms.GetMembershipListString(ms.localMessage, ms.failureList))
 			ms.mux.Unlock()
@@ -38,7 +38,7 @@ func (ms *MemberServer) HandleDisplay(command command.Command) {
 		if ms.SelfID == "" {
 			logger.PrintInfo("selfID is non-existent")
 		} else {
-			logger.PrintInfo(ms.SelfID)
+			logger.PrintToConsole(ms.SelfID)
 		}
 	} else {
 		logger.PrintError("Invalid argument to 'list':", param)

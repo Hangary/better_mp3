@@ -32,14 +32,14 @@ func NewMapleJuiceServer(fileServer *file_service.FileServer) MapleJuiceServer {
 
 func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResult *string) error {
 	inputFile := args["input"]
-	application := args["application"]
+	executable := args["executable"]
 	outputPrefix := args["output_prefix"]
 
-	//fmt.Println("Get application from DFS")
-	// Get application executable from DFS
-	mjServer.fileServer.Get(application, path.Join(mjServer.config.AppPath, application))
+	fmt.Println("Getting executable from SDFS")
+	// Get executable from DFS
+	mjServer.fileServer.Get(executable, path.Join(mjServer.config.AppPath, executable))
 
-	//fmt.Println("Get input from DFS")
+	fmt.Println("Getting input from SDFS")
 	// Get input file from DFS
 	mjServer.fileServer.Get(inputFile, path.Join(mjServer.config.AppPath, inputFile))
 
@@ -62,7 +62,7 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 		if len(content) == 0 {
 			break
 		}
-		cmd := exec.Command(path.Join(mjServer.config.AppPath, application), strings.Join(content, "\n"))
+		cmd := exec.Command(path.Join(mjServer.config.AppPath, executable), strings.Join(content, "\n"))
 		ret, err := cmd.CombinedOutput()
 		if err != nil {
 			log.Println("Application error: ", err)
@@ -100,11 +100,11 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 
 func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResult *string) error {
 	inputFile := args["input"]
-	application := args["application"]
+	executable := args["executable"]
 
-	//fmt.Println("Get application from DFS")
-	// Get application executable from DFS
-	mjServer.fileServer.Get(application, path.Join(mjServer.config.AppPath, application))
+	//fmt.Println("Get executable from DFS")
+	// Get executable executable from DFS
+	mjServer.fileServer.Get(executable, path.Join(mjServer.config.AppPath, executable))
 
 	//fmt.Println("Get input from DFS")
 	// Get input file from DFS
@@ -117,7 +117,7 @@ func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResul
 	var ret []byte
 	var err error
 	for {
-		cmd := exec.Command(path.Join(mjServer.config.AppPath, application), path.Join(mjServer.config.AppPath, inputFile))
+		cmd := exec.Command(path.Join(mjServer.config.AppPath, executable), path.Join(mjServer.config.AppPath, inputFile))
 		ret, err = cmd.CombinedOutput()
 		if err == nil {
 			break
@@ -134,7 +134,7 @@ func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResul
 func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
-	application := cmd[1]
+	executable := cmd[1]
 	taskNum, _ := strconv.Atoi(cmd[2])
 	filenamePrefix := cmd[3]
 	inputDir := cmd[4]
@@ -182,7 +182,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 	fmt.Println("Start scheduling")
 	// Schedule tasks (in turn)
-	mjServer.fileServer.Put(application, application)
+	mjServer.fileServer.Put(executable, executable)
 	tasks := map[string]string{}
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
@@ -214,7 +214,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		}
 		args := map[string]string{
 			"input":         inputFile,
-			"application":   application,
+			"executable":   executable,
 			"output_prefix": filenamePrefix,
 		}
 		calls = append(calls,
@@ -265,7 +265,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		}
 		args := map[string]string{
 			"input":         inputFile,
-			"application":   application,
+			"executable":   executable,
 			"output_prefix": filenamePrefix,
 		}
 		newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunMapleTask", args, &newResults[cnt], nil))
@@ -287,7 +287,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 	start := time.Now().UnixNano() / int64(time.Millisecond)
 
-	application := cmd[1]
+	executable := cmd[1]
 	taskNum, _ := strconv.Atoi(cmd[2])
 	filenamePrefix := cmd[3]
 	output := cmd[4]
@@ -299,7 +299,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 
 	fmt.Println("Start scheduling")
 	// Schedule tasks (in turn)
-	mjServer.fileServer.Put(application, application)
+	mjServer.fileServer.Put(executable, executable)
 	var tasks []map[string]string
 	for i := 0; i < taskNum; i++ {
 		tasks = append(tasks, map[string]string{})
@@ -332,8 +332,8 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 				continue
 			}
 			args := map[string]string{
-				"input":       inputFile,
-				"application": application,
+				"input":       	inputFile,
+				"executable": 	executable,
 			}
 			calls = append(calls, RPCTask{inputFile, ip, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &juiceResults[cnt], nil)})
 			cnt++
@@ -383,7 +383,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 			}
 			args := map[string]string{
 				"input":       inputFile,
-				"application": application,
+				"executable": executable,
 			}
 			newCalls = append(newCalls, *client.Go("MapleJuiceRPCServer.RunJuiceTask", args, &newResults[cnt], nil))
 			cnt++

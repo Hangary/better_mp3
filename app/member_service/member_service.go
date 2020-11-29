@@ -4,6 +4,7 @@ import (
 	"better_mp3/app/logger"
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -263,6 +264,10 @@ func (ms *MemberServer) ListenHeartbeat() {
 	}
 }
 
+func (ms *MemberServer) PrintMemberList() {
+	fmt.Println(ms.Members)
+}
+
 func (ms *MemberServer) Leave() {
 	ms.status = LEAVING
 	logger.PrintInfo("Leaving...")
@@ -273,5 +278,8 @@ func (ms *MemberServer) Leave() {
 func (ms *MemberServer) Run() {
 	go ms.Gossip()
 	go ms.ListenHeartbeat()
-	logger.PrintInfo("MemberServer running...")
+	logger.PrintInfo(
+		"Member Service is now running on port " + ms.config.Port,
+		"\n\tIntroducer: ", ms.config.Introducer,
+		"\n\tMember Self ID:", ms.SelfID)
 }

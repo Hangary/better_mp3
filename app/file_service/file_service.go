@@ -1,6 +1,7 @@
 package file_service
 
 import (
+	"better_mp3/app/logger"
 	"better_mp3/app/member_service"
 	"bufio"
 	"bytes"
@@ -41,6 +42,9 @@ func NewFileServer(memberService member_service.MemberServer) FileServer {
 
 func (fs *FileServer) Run() {
 	go RunRPCServer(fs)
+	logger.PrintInfo(
+		"File Service is now running on port " + fs.config.Port,
+		"\n\tSDFS file path: ", fs.config.Path)
 }
 
 func (fs *FileServer) LocalRep(filename string, success *bool) error {

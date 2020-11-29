@@ -28,7 +28,7 @@ func HandleCommand(s *file_service.FileServer, mj *maple_juice_service.MapleJuic
 
 		// member related commands
 		case "member":
-			fmt.Println(s.MemberInfo.Members)
+			memberService.PrintMemberList()
 		case "leave":
 			memberService.Leave()
 		case "hash":

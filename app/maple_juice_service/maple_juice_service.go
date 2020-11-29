@@ -48,12 +48,12 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 	outputPrefix := args["output_prefix"]
 
 	fmt.Println("Getting executable from SDFS")
-	// Get executable from DFS
-	mjServer.fileServer.Get(executable, path.Join(mjServer.config.AppPath, executable))
+	// RemoteGet executable from DFS
+	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.AppPath, executable))
 
 	fmt.Println("Getting input from SDFS")
-	// Get input file from DFS
-	mjServer.fileServer.Get(inputFile, path.Join(mjServer.config.AppPath, inputFile))
+	// RemoteGet input file from DFS
+	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.AppPath, inputFile))
 
 	//fmt.Println("Call maple function")
 	// Call maple function (10 lines at a time)
@@ -81,8 +81,8 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 			return err
 		}
 
-		//fmt.Println("Get maple results")
-		// Get resulting key-value pairs
+		//fmt.Println("RemoteGet maple results")
+		// RemoteGet resulting key-value pairs
 		var results []string
 		err = json.Unmarshal(ret, &results)
 		if err != nil {
@@ -91,7 +91,7 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 		*mapleResult = strings.Join(results, "\n")
 
 		//fmt.Println("Write maple results")
-		// Append intermediate result to DFS
+		// RemoteAppend intermediate result to DFS
 		reg, err := regexp.Compile("[^a-zA-Z0-9]+")
 		if err != nil {
 			log.Fatalln(err)
@@ -99,7 +99,7 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 		for _, pair := range results {
 			tmp := strings.Split(pair, ",")
 			key := reg.ReplaceAllString(tmp[0], "")
-			mjServer.fileServer.Append(pair + "\n", outputPrefix+"_"+key)
+			mjServer.fileServer.RemoteAppend(pair + "\n", outputPrefix+"_"+key)
 			//time.Sleep(time.Millisecond * 200)
 		}
 	}
@@ -116,13 +116,13 @@ func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResul
 	inputFile := args["input"]
 	executable := args["executable"]
 
-	//fmt.Println("Get executable from DFS")
-	// Get executable executable from DFS
-	mjServer.fileServer.Get(executable, path.Join(mjServer.config.AppPath, executable))
+	//fmt.Println("RemoteGet executable from DFS")
+	// RemoteGet executable executable from DFS
+	mjServer.fileServer.RemoteGet(executable, path.Join(mjServer.config.AppPath, executable))
 
-	//fmt.Println("Get input from DFS")
-	// Get input file from DFS
-	mjServer.fileServer.Get(inputFile, path.Join(mjServer.config.AppPath, inputFile))
+	//fmt.Println("RemoteGet input from DFS")
+	// RemoteGet input file from DFS
+	mjServer.fileServer.RemoteGet(inputFile, path.Join(mjServer.config.AppPath, inputFile))
 
 	time.Sleep(time.Second)
 
@@ -139,8 +139,8 @@ func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResul
 		log.Println(err)
 	}
 
-	//fmt.Println("Get juice results")
-	// Get the resulting key-value pair
+	//fmt.Println("RemoteGet juice results")
+	// RemoteGet the resulting key-value pair
 	*juiceResult = string(ret)
 	return nil
 }
@@ -206,13 +206,13 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 	fmt.Println("Start scheduling")
 	// Schedule mapleTasks (in turn)
-	mjServer.fileServer.Put(executable, executable)
+	mjServer.fileServer.RemotePut(executable, executable)
 	mapleTasks := map[string]string{} // taskNum -> serverIP
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
 		// upload partitioned input file to sdfs
 		inputFile := path.Join(inputDir, strconv.Itoa(i))
-		mjServer.fileServer.Put(inputFile, strconv.Itoa(i))
+		mjServer.fileServer.RemotePut(inputFile, strconv.Itoa(i))
 
 		if it.Next() == false {
 			it.First()
@@ -330,7 +330,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 
 	fmt.Println("Start scheduling")
 	// Schedule tasks (in turn)
-	mjServer.fileServer.Put(executable, executable)
+	mjServer.fileServer.RemotePut(executable, executable)
 	var tasks []map[string]string
 	for i := 0; i < taskNum; i++ {
 		tasks = append(tasks, map[string]string{})
@@ -446,13 +446,13 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 		sortedResults.Insert(kvPair)
 	}
 	content := strings.Join(sortedResults.List(), "\n") + "\n"
-	mjServer.fileServer.Append(content, output)
+	mjServer.fileServer.RemoteAppend(content, output)
 	fmt.Println("Done sorting")
 
-	// Delete intermediate files
+	// RemoteDelete intermediate files
 	if len(cmd) == 6 && cmd[5] == "1" {
 		for _, file := range files {
-			mjServer.fileServer.Delete(file)
+			mjServer.fileServer.RemoteDelete(file)
 		}
 	}
 

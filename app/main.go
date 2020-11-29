@@ -52,13 +52,13 @@ func HandleCommand() {
 		case "get":
 			if len(userInputs) == 3 {
 				start := time.Now()
-				fileService.Get(userInputs[1], userInputs[2])
+				fileService.RemoteGet(userInputs[1], userInputs[2])
 				fmt.Println(" time to get file is", time.Since(start))
 			}
 		case "delete":
 			if len(userInputs) == 2 {
 				start := time.Now()
-				fileService.Delete(userInputs[1])
+				fileService.RemoteDelete(userInputs[1])
 				fmt.Println(" time to delete file is", time.Since(start))
 			}
 		case "store":

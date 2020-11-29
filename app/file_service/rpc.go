@@ -25,7 +25,7 @@ func RunRPCServer(fileServer *FileServer) {
 }
 
 func (r FileRPCServer) LocalDel(filename string, success *bool) error {
-	return r.fileServer.LocalDel(filename, success)
+	return r.fileServer.LocalDelete(filename, success)
 }
 
 func (r FileRPCServer) LocalGet(filename string, content *[]byte) error {
@@ -41,7 +41,7 @@ func (r FileRPCServer) LocalPut(args map[string]string, success *bool) error {
 }
 
 func (r FileRPCServer) LocalRep(filename string, success *bool) error {
-	return r.fileServer.LocalRep(filename, success)
+	return r.fileServer.LocalReplicate(filename, success)
 }
 
 func (r FileRPCServer) PutRepEntry(args map[uint32][]string, success *bool) error {

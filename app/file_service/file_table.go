@@ -105,7 +105,7 @@ func (t *FileTable) RemoveFromTable(failed []string) {
 			// nextAlive
 			var success bool
 			for filename := range to1 {
-				err := t.fileServer.LocalRep(filename, &success)
+				err := t.fileServer.LocalReplicate(filename, &success)
 				if err != nil {
 					log.Println(err)
 					continue
@@ -119,7 +119,7 @@ func (t *FileTable) RemoveFromTable(failed []string) {
 				log.Println(err)
 			} else {
 				for filename := range to2 {
-					err = client.Call("FileRPCServer.LocalRep", filename, &success)
+					err = client.Call("FileRPCServer.LocalReplicate", filename, &success)
 					if err != nil {
 						log.Println(err)
 						continue
@@ -133,7 +133,7 @@ func (t *FileTable) RemoveFromTable(failed []string) {
 				log.Println(err)
 			} else {
 				for filename := range to3 {
-					err = client.Call("FileRPCServer.LocalRep", filename, &success)
+					err = client.Call("FileRPCServer.LocalReplicate", filename, &success)
 					if err != nil {
 						log.Println(err)
 						continue
@@ -147,7 +147,7 @@ func (t *FileTable) RemoveFromTable(failed []string) {
 				log.Println(err)
 			} else {
 				for filename := range to4 {
-					err = client.Call("FileRPCServer.LocalRep", filename, &success)
+					err = client.Call("FileRPCServer.LocalReplicate", filename, &success)
 					if err != nil {
 						log.Println(err)
 						continue

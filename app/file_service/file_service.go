@@ -41,7 +41,7 @@ func (fs *FileServer) Run() {
 		"\n\tSDFS file path: ", fs.config.Path)
 }
 
-func (fs *FileServer) LocalRep(filename string, success *bool) error {
+func (fs *FileServer) LocalReplicate(filename string, success *bool) error {
 	var content string
 	locations := fs.FileTable.ListLocations(filename)
 	if len(locations) == 0 {
@@ -104,7 +104,7 @@ func (fs *FileServer) confirm(local string, remote string) {
 			cmd := strings.Split(string(bytes.Trim([]byte(sentence), "\n")), " ")
 			if err == nil && len(cmd) == 1 {
 				if cmd[0] == "y" || cmd[0] == "yes" {
-					fs.Put(local, remote)
+					fs.RemotePut(local, remote)
 				} else if cmd[0] == "n" || cmd[0] == "no" {
 					return
 				}
@@ -119,13 +119,13 @@ func (fs *FileServer) TemptPut(local string, remote string) {
 		fmt.Println("Confirm update? (y/n)")
 		fs.confirm(local, remote)
 	} else {
-		fs.Put(local, remote)
+		fs.RemotePut(local, remote)
 	}
 }
 
 // local: local file name
 // remote: remote file name
-func (fs *FileServer) Put(local string, remote string) {
+func (fs *FileServer) RemotePut(local string, remote string) {
 	target_ips := fs.FileTable.search(remote)
 	//fmt.Println(target_ips)
 	for _, ip := range target_ips {
@@ -176,7 +176,7 @@ func (fs *FileServer) LocalGet(filename string, content *[]byte) error {
 	return err
 }
 
-func (fs *FileServer) Get(sdfs string, local string) {
+func (fs *FileServer) RemoteGet(sdfs string, local string) {
 	locations := fs.FileTable.ListLocations(sdfs)
 	if len(locations) == 0 {
 		fmt.Println("The file is not available!")
@@ -207,12 +207,12 @@ func (fs *FileServer) Get(sdfs string, local string) {
 	}
 }
 
-func (fs *FileServer) LocalDel(filename string, success *bool) error {
+func (fs *FileServer) LocalDelete(filename string, success *bool) error {
 	err := os.Remove(fs.config.Path + filename)
 	return err
 }
 
-func (fs *FileServer) Delete(sdfs string) {
+func (fs *FileServer) RemoteDelete(sdfs string) {
 	locations := fs.FileTable.ListLocations(sdfs)
 	if len(locations) == 0 {
 		fmt.Println("The file is not available!")
@@ -221,7 +221,7 @@ func (fs *FileServer) Delete(sdfs string) {
 		var success bool
 		for _, ip := range locations {
 			if ip == fs.ms.SelfIP {
-				err := fs.LocalDel(sdfs, &success)
+				err := fs.LocalDelete(sdfs, &success)
 				if err != nil {
 					log.Println(err)
 				}
@@ -231,7 +231,7 @@ func (fs *FileServer) Delete(sdfs string) {
 					log.Println(err)
 					continue
 				}
-				err = client.Call("FileRPCServer.LocalDel", sdfs, &success)
+				err = client.Call("FileRPCServer.LocalDelete", sdfs, &success)
 				if err != nil {
 					log.Println(err)
 					continue
@@ -257,7 +257,7 @@ func (fs *FileServer) Delete(sdfs string) {
 	}
 }
 
-func (fs *FileServer) Append(content string, remote string) {
+func (fs *FileServer) RemoteAppend(content string, remote string) {
 	target_ips := fs.FileTable.search(remote)
 	//fmt.Println(target_ips)
 	for _, ip := range target_ips {

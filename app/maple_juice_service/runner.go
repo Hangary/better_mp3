@@ -1,6 +1,7 @@
 package maple_juice_service
 
 import (
+	"better_mp3/app/logger"
 	"bufio"
 	"encoding/json"
 	"fmt"
@@ -47,10 +48,11 @@ func (mjServer *MapleJuiceServer) RunMapleTask(args map[string]string, mapleResu
 		if len(content) == 0 {
 			break
 		}
+		fmt.Println("DEBUG:", path.Join(mjServer.config.TmpPath, executable))
 		cmd := exec.Command(path.Join(mjServer.config.TmpPath, executable), strings.Join(content, "\n"))
 		ret, err := cmd.CombinedOutput()
 		if err != nil {
-			log.Println("Application error: ", err)
+			logger.PrintError("Application error: ", err)
 			return err
 		}
 

@@ -41,7 +41,7 @@ func (mjServer MapleJuiceServer) Run() {
 }
 
 func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResult *string) error {
-	fmt.Println("Begin Running Maple Task")
+	fmt.Println("Start running Maple task")
 
 	inputFile := args["input"]
 	executable := args["executable"]
@@ -111,7 +111,7 @@ func (mjServer MapleJuiceServer) RunMapleTask(args map[string]string, mapleResul
 }
 
 func (mjServer MapleJuiceServer) RunJuiceTask(args map[string]string, juiceResult *string) error {
-	fmt.Println("Begin Running Juice Task")
+	fmt.Println("Start running Juice task")
 
 	inputFile := args["input"]
 	executable := args["executable"]
@@ -159,11 +159,11 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	// Partition input data (hash partitioning)
 
 	// open output files
-	outputFiles := map[string]*os.File{}
+	outputFiles := map[int]*os.File{}
 	for i := 0; i < taskNum; i++ {
-		inputFile := path.Join(mjServer.config.InputDir, inputFileName + "-" + strconv.Itoa(i))
-		f, err := os.OpenFile(inputFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-		outputFiles["input"+strconv.Itoa(i)] = f
+		outputFile := path.Join(mjServer.config.InputDir, inputFileName + "-" + strconv.Itoa(i))
+		f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		outputFiles[i] = f
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -182,7 +182,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		if err != nil {
 			break
 		}
-		if _, err = outputFiles["input"+strconv.Itoa(lineNum%taskNum)].WriteString(line); err != nil {
+		if _, err = outputFiles[lineNum % taskNum].WriteString(line); err != nil {
 			log.Fatal(err)
 		}
 		lineNum++
@@ -193,7 +193,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 	// close all output files
 	for i := 0; i < taskNum; i++ {
-		if err := outputFiles["input"+strconv.Itoa(i)].Close(); err != nil {
+		if err := outputFiles[i].Close(); err != nil {
 			log.Fatalln(err)
 		}
 	}
@@ -212,8 +212,8 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
 		// upload partitioned input file to sdfs
-		inputFile := path.Join(inputFileName, strconv.Itoa(i))
-		mjServer.fileServer.RemotePut(inputFile, strconv.Itoa(i))
+		fileClip := path.Join(mjServer.config.InputDir, inputFileName + "-" + strconv.Itoa(i))
+		mjServer.fileServer.RemotePut(fileClip, strconv.Itoa(i))
 
 		if it.Next() == false {
 			it.First()

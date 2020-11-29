@@ -95,12 +95,16 @@ func (mjServer *MapleJuiceServer) RunJuiceTask(task MapleJuiceTask, juiceResult 
 	time.Sleep(time.Second)
 
 	logger.PrintInfo("Running juice executable...")
+	logger.PrintInfo("DEBUG:",
+		path.Join(mjServer.config.TmpDir, task.ExecFileName),
+		path.Join(mjServer.config.TmpDir, task.InputFileName))
 	cmd := exec.Command(
 		path.Join(mjServer.config.TmpDir, task.ExecFileName),
 		path.Join(mjServer.config.TmpDir, task.InputFileName))
 	ret, err := cmd.CombinedOutput()
 	if err != nil {
 		logger.PrintError(err)
+		return err
 	}
 	logger.PrintInfo("DEBUG:", ret)
 

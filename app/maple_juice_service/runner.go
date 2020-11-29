@@ -72,7 +72,9 @@ func (mjServer *MapleJuiceServer) RunMapleTask(task MapleJuiceTask, mapleResult 
 
 	logger.PrintInfo("Uploading maple result...")
 	for key, value := range kv {
-		mjServer.fileServer.RemoteAppend(strings.Join(value, "\n") + "\n", task.OutputPrefix + "_" + key)
+		mjServer.fileServer.RemoteAppend(
+			[]byte(strings.Join(value, "\n") + "\n"),
+			task.OutputPrefix + "_" + key)
 	}
 
 	logger.PrintInfo("Successfully finished maple task!")

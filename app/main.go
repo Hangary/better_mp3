@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 )
 
 var (
@@ -43,37 +42,31 @@ func HandleCommand() {
 			memberService.HandleLeave(userCommand)
 
 		// file related commands
-		case "put":
+		case command.Put:
 			if len(userInputs) == 3 {
-				start := time.Now()
-				fileService.TemptPut(userInputs[1], userInputs[2])
-				fmt.Println(" time to put file is", time.Since(start))
+				fileService.RemotePut(userInputs[1], userInputs[2])
 			}
-		case "get":
+		case command.Get:
 			if len(userInputs) == 3 {
-				start := time.Now()
 				fileService.RemoteGet(userInputs[1], userInputs[2])
-				fmt.Println(" time to get file is", time.Since(start))
 			}
-		case "delete":
+		case command.Delete:
 			if len(userInputs) == 2 {
-				start := time.Now()
 				fileService.RemoteDelete(userInputs[1])
-				fmt.Println(" time to delete file is", time.Since(start))
 			}
-		case "store":
+		case command.Store:
 			fileService.FileTable.ListMyFiles()
-		case "ls":
+		case command.List:
 			fmt.Println(fileService.FileTable.ListLocations(userInputs[1]))
 		case "all":
 			fileService.FileTable.ListAllFiles()
 
 		// maple juice relate functions
-		case "maple":
+		case command.Maple:
 			if len(userInputs) == 5 {
 				maplejuiceServer.ScheduleMapleTask(userInputs)
 			}
-		case "juice":
+		case command.Juice:
 			if len(userInputs) == 5 || len(userInputs) == 6 {
 				maplejuiceServer.ScheduleJuiceTask(userInputs)
 			}

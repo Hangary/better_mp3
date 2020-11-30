@@ -114,10 +114,11 @@ func (fs *FileServer) RemotePut(local string, remote string) {
 				continue
 			}
 			var success bool
-			err = client.Call("FileRPCServer.LocalPut", map[string]string{
-				"filename": remote,
-				"content":  string(content),
-			}, &success)
+			err = client.Call("FileRPCServer.LocalPut",
+				FileTask {
+				FileName: remote,
+				Content:  content,
+				}, &success)
 			if err != nil {
 				log.Println(err)
 				continue

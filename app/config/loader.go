@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
 	"time"
 )
 
@@ -40,6 +41,11 @@ type Config struct {
 
 var config Config
 
+func CreateDir() {
+	_ = os.Mkdir(config.MapleJuiceServiceConfig.TmpDir, PERM_MODE)
+	_ = os.Mkdir(config.MapleJuiceServiceConfig.SdfsDir, PERM_MODE)
+}
+
 func LoadConfig(configFilePath string) {
 	yamlFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
@@ -49,6 +55,7 @@ func LoadConfig(configFilePath string) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	CreateDir()
 }
 
 func GetConfig() Config {

@@ -85,12 +85,14 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	logger.PrintInfo("Start scheduling...")
 	// Schedule mapleTasks (in turn)
 	mjServer.fileServer.RemotePut(executableFilePath, execFileName)
+	logger.PrintInfo("Uploaded exec file", execFileName, "in sdfs")
 	mapleTasks := map[string]string{} // taskNum -> serverIP
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
 		// upload partitioned input file to sdfs
 		fileClip := path.Join(mjServer.config.InputDir, getOutputFileName(outputPrefix, i))
 		mjServer.fileServer.RemotePut(fileClip, strconv.Itoa(i))
+		logger.PrintInfo("Uploaded partitioned file clip", fileClip, "with name", strconv.Itoa(i), "in sdfs")
 
 		if it.Next() == false {
 			it.First()
@@ -99,6 +101,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 		// assign task to one server
 		mapleTasks[strconv.Itoa(i)] = node.(file_service.FileTableEntry).ServerIP
+		logger.PrintInfo("Schedule: maple task", strconv.Itoa(i), "is assigned to", node.(file_service.FileTableEntry).ServerIP)
 	}
 	logger.PrintInfo("Done scheduling")
 

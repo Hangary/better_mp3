@@ -341,7 +341,7 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 	for _, kvPair := range results {
 		sortedResults.Insert(kvPair)
 	}
-	content := []byte(strings.Join(sortedResults.List(), "\n") + "\n")
+	content := strings.Join(sortedResults.List(), "\n") + "\n"
 	mjServer.fileServer.RemoteAppend(content, output)
 	fmt.Println("Done sorting")
 

@@ -4,12 +4,16 @@ import (
 	"better_mp3/app/config"
 	"better_mp3/app/logger"
 	"better_mp3/app/member_service"
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/rpc"
 	"os"
+	"strings"
+	"time"
 )
 
 var promptChannel = make(chan string)
@@ -19,11 +23,6 @@ type FileServer struct {
 	ms        *member_service.MemberServer
 	FileTable FileTable
 	config    config.FileServiceConfig
-}
-
-type FileTask struct {
-	FileName string
-	Content []byte
 }
 
 func NewFileServer(memberService *member_service.MemberServer) *FileServer {
@@ -43,7 +42,7 @@ func (fs *FileServer) Run() {
 }
 
 func (fs *FileServer) LocalReplicate(filename string, success *bool) error {
-	var content []byte
+	var content string
 	locations := fs.FileTable.ListLocations(filename)
 	if len(locations) == 0 {
 		return errors.New("no replica available")
@@ -65,36 +64,63 @@ func (fs *FileServer) LocalReplicate(filename string, success *bool) error {
 					continue
 				}
 			}
-			content = buffer
+			content = string(buffer)
 		}
 	}
-
-	if content != nil {
-		err := fs.LocalPut(FileTask {
-			FileName: filename,
-			Content: content,
-		}, nil)
-		return err
-	} else {
-		return nil
-	}
-}
-
-func (fs *FileServer) LocalPut(task FileTask, success *bool) error {
-	err := ioutil.WriteFile(fs.config.Path + task.FileName, task.Content, os.ModePerm)
+	err := fs.LocalPut(map[string]string{"filename": filename, "content": content}, success)
 	return err
 }
 
-func (fs *FileServer) LocalAppend(task FileTask, success *bool) error {
-	f, err := os.OpenFile(fs.config.Path + task.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func (fs *FileServer) LocalPut(args map[string]string, success *bool) error {
+	err := ioutil.WriteFile(fs.config.Path+args["filename"], []byte(args["content"]), os.ModePerm)
+	return err
+}
+
+func (fs *FileServer) LocalAppend(args map[string]string, success *bool) error {
+	f, err := os.OpenFile(fs.config.Path+args["filename"], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(task.Content); err != nil {
+	if _, err := f.Write([]byte(args["content"])); err != nil {
 		return err
 	}
 	err = f.Close()
 	return err
+}
+
+func (fs *FileServer) confirm(local string, remote string) {
+	buf := bufio.NewReader(os.Stdin)
+	go func() {
+		time.Sleep(time.Second * 30)
+		promptChannel <- "ok"
+	}()
+	for {
+		select {
+		case <-promptChannel:
+			fmt.Println("Timeout")
+			return
+		default:
+			sentence, err := buf.ReadBytes('\n')
+			cmd := strings.Split(string(bytes.Trim([]byte(sentence), "\n")), " ")
+			if err == nil && len(cmd) == 1 {
+				if cmd[0] == "y" || cmd[0] == "yes" {
+					fs.RemotePut(local, remote)
+				} else if cmd[0] == "n" || cmd[0] == "no" {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (fs *FileServer) TemptPut(local string, remote string) {
+	_, ok := fs.FileTable.latest[remote]
+	if ok && time.Now().UnixNano()-fs.FileTable.latest[remote] < int64(time.Minute) {
+		fmt.Println("Confirm update? (y/n)")
+		fs.confirm(local, remote)
+	} else {
+		fs.RemotePut(local, remote)
+	}
 }
 
 // local: local file name
@@ -124,7 +150,8 @@ func (fs *FileServer) RemotePut(local string, remote string) {
 			}
 		}
 	}
-	err := fs.FileTable.PutEntry(remote, nil)
+	var success bool
+	err := fs.FileTable.PutEntry(remote, &success)
 	if err != nil {
 		log.Println(err)
 	}
@@ -135,7 +162,7 @@ func (fs *FileServer) RemotePut(local string, remote string) {
 			log.Println(err)
 			continue
 		}
-		err = client.Call("FileRPCServer.PutEntry", remote, nil)
+		err = client.Call("FileRPCServer.PutEntry", remote, &success)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -221,7 +248,7 @@ func (fs *FileServer) RemoteDelete(sdfs string) {
 				log.Println(err)
 				continue
 			}
-			err = client.Call("FileRPCServer.DeleteEntry", sdfs, &success)
+			err = client.Call("FileRPCServer.DelEntry", sdfs, &success)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -230,8 +257,8 @@ func (fs *FileServer) RemoteDelete(sdfs string) {
 	}
 }
 
-func (fs *FileServer) RemoteAppend(content []byte, remoteFileName string) {
-	target_ips := fs.FileTable.search(remoteFileName)
+func (fs *FileServer) RemoteAppend(content string, remote string) {
+	target_ips := fs.FileTable.search(remote)
 	//fmt.Println(target_ips)
 	for _, ip := range target_ips {
 		client, err := rpc.Dial("tcp", ip+":"+fs.config.Port)
@@ -240,19 +267,17 @@ func (fs *FileServer) RemoteAppend(content []byte, remoteFileName string) {
 			continue
 		}
 		var success bool
-		err = client.Call(
-			"FileRPCServer.LocalAppend",
-			FileTask {
-				FileName: remoteFileName,
-				Content:  content,
-			}, &success)
+		err = client.Call("FileRPCServer.LocalAppend", map[string]string{
+			"filename": remote,
+			"content":  content,
+		}, &success)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 	}
 	var success bool
-	err := fs.FileTable.PutEntry(remoteFileName, &success)
+	err := fs.FileTable.PutEntry(remote, &success)
 	if err != nil {
 		log.Println(err)
 	}
@@ -262,7 +287,7 @@ func (fs *FileServer) RemoteAppend(content []byte, remoteFileName string) {
 			logger.PrintError(err)
 			continue
 		}
-		err = client.Call("FileRPCServer.PutEntry", remoteFileName, &success)
+		err = client.Call("FileRPCServer.PutEntry", remote, &success)
 		if err != nil {
 			logger.PrintError(err)
 			continue

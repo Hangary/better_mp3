@@ -38,10 +38,8 @@ func (fs *FileServer) RunDaemon() {
 	for {
 		select {
 			case joinedNode := <- fs.ms.JoinedNodeChan:
-				fmt.Println("FileTable: node joined", joinedNode)
 				fs.FileTable.AddEmptyEntry(joinedNode)
-			case failedNode := <- fs.ms.FailedNodeChan:
-				fmt.Println("FileTable: node left", failedNode)
+			case <- fs.ms.FailedNodeChan:
 				fs.FileTable.RemoveFromTable(fs.ms.GetFailedMemberIPList())
 		}
 	}

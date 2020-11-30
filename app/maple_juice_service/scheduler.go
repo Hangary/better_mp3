@@ -26,7 +26,7 @@ func (mjServer *MapleJuiceServer) HashBasedPartition(inputFileName string, outpu
 	// open output files
 	outputFiles := map[int]*os.File{}
 	for i := 0; i < taskNum; i++ {
-		outputFile := path.Join(mjServer.config.InputDir, getOutputFileName(outputPrefix, i))
+		outputFile := path.Join(mjServer.config.TmpDir, getOutputFileName(outputPrefix, i))
 		f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		outputFiles[i] = f
 		if err != nil {
@@ -90,9 +90,9 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 	it := mjServer.fileServer.FileTable.Storage.Iterator()
 	for i := 0; i < taskNum; i++ {
 		// upload partitioned input file to sdfs
-		fileClip := path.Join(mjServer.config.InputDir, getOutputFileName(outputPrefix, i))
+		fileClip := path.Join(mjServer.config.TmpDir, getOutputFileName(outputPrefix, i))
 		mjServer.fileServer.RemotePut(fileClip, strconv.Itoa(i))
-		logger.PrintInfo("Uploaded partitioned file clip", fileClip, "with name", strconv.Itoa(i), "in sdfs")
+		logger.PrintInfo("Uploaded file clip", fileClip, "with name", strconv.Itoa(i), "in sdfs")
 
 		if it.Next() == false {
 			it.First()

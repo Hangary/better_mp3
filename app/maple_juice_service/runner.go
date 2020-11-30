@@ -44,12 +44,12 @@ func splitMapleResultFile(resultFileName string) (kv map[string][]string, err er
 func (mjServer *MapleJuiceServer) RunMapleTask(task MapleJuiceTask, mapleResult *string) error {
 	fmt.Println("Start running Maple task")
 
-	logger.PrintInfo("Getting executable file %s from SDFS...", task.ExecFileName)
+	logger.PrintInfo("Getting executable file", task.ExecFileName,  "from SDFS...")
 	mjServer.fileServer.RemoteGet(
 		task.ExecFileName,
 		path.Join(mjServer.config.TmpDir, task.ExecFileName))
 
-	logger.PrintInfo("Getting input file clip %s from SDFS...", task.InputFileName)
+	logger.PrintInfo("Getting input file clip", task.InputFileName, "from SDFS...")
 	mjServer.fileServer.RemoteGet(
 		task.InputFileName,
 		path.Join(mjServer.config.TmpDir, task.InputFileName))

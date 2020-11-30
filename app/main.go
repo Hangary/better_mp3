@@ -80,7 +80,7 @@ func HandleCommand() {
 
 func main() {
 	logger.PrintInfo("Loading config...")
-	config.LoadConfig("./conf.yaml")
+	config.LoadConfig("./app/conf.yaml")
 
 	logger.PrintInfo("Starting member service...")
 	memberService = member_service.NewMemberServer()

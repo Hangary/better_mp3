@@ -100,6 +100,11 @@ func (mjServer *MapleJuiceServer) RunJuiceTask(task MapleJuiceTask, juiceResult 
 	logger.PrintInfo("DEBUG:",
 		path.Join(mjServer.config.TmpDir, task.ExecFileName),
 		path.Join(mjServer.config.TmpDir, task.InputFileName))
+	err := execute(
+		path.Join(mjServer.config.TmpDir, task.ExecFileName),
+		path.Join(mjServer.config.TmpDir, task.InputFileName),
+		path.Join(mjServer.config.TmpDir, task.OutputPrefix + "-" + "DEBUG"))
+	logger.PrintInfo("Debug running finished.")
 	cmd := exec.Command(
 		path.Join(mjServer.config.TmpDir, task.ExecFileName),
 		path.Join(mjServer.config.TmpDir, task.InputFileName))

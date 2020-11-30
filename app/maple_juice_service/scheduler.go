@@ -82,7 +82,7 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 
 	mjServer.HashBasedPartition(inputFileName, outputPrefix, taskNum)
 
-	fmt.Println("Start scheduling")
+	logger.PrintInfo("Start scheduling...")
 	// Schedule mapleTasks (in turn)
 	mjServer.fileServer.RemotePut(executableFilePath, execFileName)
 	mapleTasks := map[string]string{} // taskNum -> serverIP
@@ -100,9 +100,9 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 		// assign task to one server
 		mapleTasks[strconv.Itoa(i)] = node.(file_service.FileTableEntry).ServerIP
 	}
-	fmt.Println("Done scheduling")
+	logger.PrintInfo("Done scheduling")
 
-	fmt.Println("Start RPC")
+	logger.PrintInfo("Start calling RPC...")
 	// Asynchronous RPC
 	port := mjServer.config.Port
 	var calls []RPCTask
@@ -195,10 +195,10 @@ func (mjServer *MapleJuiceServer) ScheduleMapleTask(cmd []string) {
 			log.Fatalln("Reschedule failed: ", replyCall.Error)
 		}
 	}
-	fmt.Println("Done RPC")
+	logger.PrintInfo("Done RPC")
 
 	end := time.Now().UnixNano() / int64(time.Millisecond)
-	log.Println("Maple elapsed", end - start, "milliseconds.")
+	logger.PrintInfo("Maple cost", (end - start) / 1000, "seconds.")
 }
 
 func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
@@ -322,9 +322,9 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 			log.Fatalln("Reschedule failed ", replyCall.Error)
 		}
 	}
-	fmt.Println("Done RPC")
+	logger.PrintInfo("Done RPC")
 
-	fmt.Println("Start sorting")
+	logger.PrintInfo("Start sorting results...")
 	// Sort results and write to DFS
 	var results []string
 	for _, s := range juiceResults {
@@ -353,5 +353,5 @@ func (mjServer *MapleJuiceServer) ScheduleJuiceTask(cmd []string) {
 	}
 
 	end := time.Now().UnixNano() / int64(time.Millisecond)
-	log.Println("Juice elapsed", end - start, "milliseconds.")
+	logger.PrintInfo("Juice cost", end - start / 1000, "seconds.")
 }
